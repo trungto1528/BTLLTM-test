@@ -8,10 +8,15 @@ import com.test.ui.JoinRoomView;
 import com.test.ui.LobbyView;
 import com.test.ui.MainMenuView;
 
+import javafx.animation.PauseTransition;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
+import javafx.scene.control.Label;
+import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
 public class GameApp extends Application {
 
@@ -19,10 +24,6 @@ public class GameApp extends Application {
 
     /*
      * Chỉ sử dụng MỘT Scene duy nhất.
-     *
-     * Các màn hình sẽ được thay bằng:
-     *
-     * scene.setRoot(...)
      */
     private Scene scene;
 
@@ -39,6 +40,24 @@ public class GameApp extends Application {
      * GAME_STARTED.
      */
     private GameScene gameScene;
+
+    /*
+     * Container dùng khi đang chơi game.
+     *
+     * GameScene nằm dưới.
+     * Toast thông báo nằm trên.
+     */
+    private StackPane gameContainer;
+
+    /*
+     * Toast thông báo người chơi rời trận.
+     */
+    private Label departureToast;
+
+    /*
+     * Timer tự ẩn toast.
+     */
+    private PauseTransition departureToastTimer;
 
     /*
      * Player ID do server cấp.
@@ -78,20 +97,9 @@ public class GameApp extends Application {
         network =
                 new GameWebSocketClient();
 
-        /*
-         * Tất cả message lobby / lifecycle
-         * sẽ đi vào đây.
-         */
         network.setMessageHandler(
                 this::handleServerMessage);
 
-        /*
-         * Connect một lần duy nhất khi
-         * application start.
-         *
-         * Không connect lại mỗi khi
-         * chuyển scene.
-         */
         network.connect();
 
         // =================================================
@@ -246,9 +254,6 @@ public class GameApp extends Application {
 
     public void createRoom() {
 
-        /*
-         * Server chịu trách nhiệm tạo roomId.
-         */
         network.send(
                 "CREATE_ROOM");
     }
@@ -282,23 +287,13 @@ public class GameApp extends Application {
     public void startGame() {
 
         /*
-         * Client KHÔNG tự chuyển sang GameScene.
+         * Client không tự chuyển GameScene.
          *
-         * Chỉ host được phép gửi START_GAME.
-         *
-         * Sau đó chờ:
-         *
-         * GAME_STARTED|ABCDE
-         *
-         * từ server.
+         * Chờ GAME_STARTED từ server.
          */
         network.send(
                 "START_GAME");
 
-        /*
-         * UI hiển thị trạng thái
-         * đang bắt đầu game.
-         */
         lobby.setStartingStatus();
     }
 
@@ -435,6 +430,19 @@ public class GameApp extends Application {
                 "ROOM_LEFT|")) {
 
             handleRoomLeft(
+                    message);
+
+            return;
+        }
+
+        // =================================================
+        // PLAYER LEFT
+        // =================================================
+
+        if (message.startsWith(
+                "PLAYER_LEFT|")) {
+
+            handlePlayerLeft(
                     message);
 
             return;
@@ -604,7 +612,24 @@ public class GameApp extends Application {
 
         currentHost =
                 localPlayerId != null
-                        && localPlayerId.equals(hostId);
+                        && localPlayerId.equals(
+                                hostId);
+
+        /*
+         * QUAN TRỌNG:
+         *
+         * Nếu đang trong GameScene thì
+         * KHÔNG được đưa client về Lobby.
+         *
+         * ROOM_STATE lúc này chỉ dùng để
+         * cập nhật currentHost.
+         */
+        if (gameScene != null
+                && scene.getRoot()
+                        == gameContainer) {
+
+            return;
+        }
 
         /*
          * Nếu chưa ở Lobby thì vào Lobby.
@@ -684,8 +709,6 @@ public class GameApp extends Application {
         }
 
         /*
-         * Protocol:
-         *
          * ROOM_LIST|roomId|currentPlayers|maxPlayers|OPEN
          */
         String[] parts =
@@ -778,14 +801,146 @@ public class GameApp extends Application {
     private void handleRoomLeft(
             String message) {
 
+        /*
+         * Chỉ client vừa gửi LEAVE_ROOM
+         * mới nhận ROOM_LEFT.
+         */
         currentRoomId =
                 null;
 
         currentHost =
                 false;
 
+        gameScene =
+                null;
+
+        gameContainer =
+                null;
+
+        hideDepartureToast();
+
+        network.setGameScene(
+                null);
+
         Platform.runLater(
                 this::showMainMenu);
+    }
+
+    // =====================================================
+    // PLAYER LEFT
+    // =====================================================
+
+    private void handlePlayerLeft(
+            String message) {
+
+        /*
+         * Protocol:
+         *
+         * PLAYER_LEFT|
+         * roomId|
+         * playerId|
+         * wasHost|
+         * newHostId
+         */
+
+        String[] parts =
+                message.split("\\|");
+
+        if (parts.length < 5) {
+
+            System.err.println(
+                    "Invalid PLAYER_LEFT: "
+                            + message);
+
+            return;
+        }
+
+        String roomId =
+                parts[1];
+
+        String playerId =
+                parts[2];
+
+        boolean wasHost =
+                Boolean.parseBoolean(
+                        parts[3]);
+
+        String newHostId =
+                parts[4];
+
+        /*
+         * =================================================
+         * CHỈ XỬ LÝ NGƯỜI CÙNG ROOM
+         * =================================================
+         */
+        if (currentRoomId == null
+                || !currentRoomId.equals(roomId)) {
+
+            return;
+        }
+
+        /*
+         * Nếu đang trong game:
+         *
+         * - không về Lobby
+         * - không dừng trận
+         * - chỉ hiện thông báo
+         */
+        if (gameScene != null
+                && scene.getRoot()
+                        == gameContainer) {
+
+            /*
+             * Cập nhật host local.
+             *
+             * Nếu mình là host mới thì
+             * currentHost = true.
+             */
+            currentHost =
+                    localPlayerId != null
+                            && localPlayerId.equals(
+                                    newHostId);
+
+            String playerName =
+                    shortPlayerId(
+                            playerId);
+
+            final String notification;
+
+            if (wasHost) {
+
+                notification =
+                        "Host "
+                                + playerName
+                                + " đã rời trận. "
+                                + "Host mới: "
+                                + shortPlayerId(
+                                        newHostId);
+
+            } else {
+
+                notification =
+                        "Người chơi "
+                                + playerName
+                                + " đã rời trận.";
+            }
+
+            showDepartureToast(
+                    notification);
+
+            return;
+        }
+
+        /*
+         * Nếu chưa vào game thì chỉ cập nhật
+         * host hiện tại.
+         *
+         * ROOM_STATE sẽ cập nhật số người.
+         */
+        currentHost =
+                localPlayerId != null
+                        && localPlayerId.equals(
+                                newHostId);
     }
 
     // =====================================================
@@ -810,7 +965,8 @@ public class GameApp extends Application {
          * hiện tại.
          */
         if (currentRoomId == null
-                || !currentRoomId.equals(roomId)) {
+                || !currentRoomId.equals(
+                        roomId)) {
 
             return;
         }
@@ -830,46 +986,18 @@ public class GameApp extends Application {
     private void openGameScene() {
 
         /*
-         * Tránh tạo GameScene nhiều lần nếu
-         * server gửi GAME_STARTED nhiều hơn một lần.
+         * Tránh tạo GameScene nhiều lần.
          */
         if (gameScene != null) {
-
             return;
         }
 
-        /*
-         * Constructor hiện tại của GameScene:
-         *
-         * GameScene(GameWebSocketClient network)
-         */
         gameScene =
                 new GameScene(
                         network);
 
         /*
-         * =================================================
-         * QUAN TRỌNG
-         * =================================================
-         *
-         * GameApp đã nhận WELCOME trước đó:
-         *
-         * WELCOME|playerId
-         *
-         * Nhưng GameScene được tạo SAU KHI
-         * GAME_STARTED.
-         *
-         * Vì vậy phải truyền playerId vào GameScene
-         * tại đây.
-         *
-         * Nếu thiếu dòng này:
-         *
-         * localPlayerId == null
-         *
-         * => player của chính mình trong WORLD_STATE
-         * bị coi là REMOTE PLAYER
-         *
-         * => xuất hiện player ảo / phân thân.
+         * Truyền player ID server cấp.
          */
         if (localPlayerId != null) {
 
@@ -878,30 +1006,183 @@ public class GameApp extends Application {
         }
 
         /*
-         * GameWebSocketClient cần biết
-         * GameScene hiện tại để chuyển
-         * WORLD_STATE / PLAYER_STATE vào game.
+         * WebSocket chuyển WORLD_STATE
+         * vào GameScene.
          */
         network.setGameScene(
                 gameScene);
 
         /*
-         * Start game loop hiện tại.
+         * =================================================
+         * GAME CONTAINER
+         * =================================================
          *
-         * KHÔNG thay đổi gameplay.
+         * GameScene nằm dưới.
+         * Toast nằm trên.
          */
+        gameContainer =
+                new StackPane();
+
+        gameContainer.setPrefSize(
+                800,
+                600);
+
+        gameContainer.getChildren().add(
+                gameScene);
+
+        // =================================================
+        // DEPARTURE TOAST
+        // =================================================
+
+        departureToast =
+                new Label();
+
+        departureToast.setVisible(
+                false);
+
+        departureToast.setManaged(
+                false);
+
+        departureToast.setMouseTransparent(
+                true);
+
+        departureToast.setWrapText(
+                true);
+
+        departureToast.setMaxWidth(
+                420);
+
+        departureToast.setAlignment(
+                Pos.CENTER_LEFT);
+
+        departureToast.setStyle(
+                "-fx-background-color: rgba(25, 29, 36, 0.94);"
+                        + "-fx-text-fill: white;"
+                        + "-fx-padding: 10 14;"
+                        + "-fx-background-radius: 8;"
+                        + "-fx-border-color: rgba(255,255,255,0.18);"
+                        + "-fx-border-radius: 8;"
+                        + "-fx-font-size: 14px;");
+
+        StackPane.setAlignment(
+                departureToast,
+                Pos.BOTTOM_LEFT);
+
+        /*
+         * Cách mép trái 20px,
+         * cách mép dưới 20px.
+         */
+        StackPane.setMargin(
+                departureToast,
+                new javafx.geometry.Insets(
+                        0,
+                        0,
+                        20,
+                        20));
+
+        gameContainer.getChildren().add(
+                departureToast);
+
+        departureToastTimer =
+                new PauseTransition(
+                        Duration.seconds(4));
+
+        departureToastTimer.setOnFinished(
+                event ->
+                        hideDepartureToast());
+
+        // =================================================
+        // START LOOP
+        // =================================================
+
         gameScene.startLoop();
 
         /*
-         * Dùng Scene hiện tại, không tạo Scene mới.
+         * Dùng Scene hiện tại.
          */
         scene.setRoot(
-                gameScene);
+                gameContainer);
 
         /*
          * Nhận keyboard input.
          */
         gameScene.requestFocus();
+    }
+
+    // =====================================================
+    // SHOW DEPARTURE TOAST
+    // =====================================================
+
+    private void showDepartureToast(
+            String message) {
+
+        if (departureToast == null) {
+            return;
+        }
+
+        Platform.runLater(
+                () -> {
+
+                    departureToast.setText(
+                            message);
+
+                    departureToast.setVisible(
+                            true);
+
+                    departureToast.toFront();
+
+                    if (departureToastTimer != null) {
+
+                        departureToastTimer.playFromStart();
+                    }
+                });
+    }
+
+    // =====================================================
+    // HIDE DEPARTURE TOAST
+    // =====================================================
+
+    private void hideDepartureToast() {
+
+        if (departureToastTimer != null) {
+
+            departureToastTimer.stop();
+        }
+
+        if (departureToast != null) {
+
+            departureToast.setVisible(
+                    false);
+        }
+    }
+
+    // =====================================================
+    // SHORT PLAYER ID
+    // =====================================================
+
+    private String shortPlayerId(
+            String playerId) {
+
+        if (playerId == null
+                || playerId.isBlank()) {
+
+            return "unknown";
+        }
+
+        /*
+         * WebSocketSession ID thường khá dài.
+         *
+         * Chỉ hiển thị 6 ký tự đầu
+         * cho dễ đọc.
+         */
+        if (playerId.length() <= 6) {
+
+            return playerId;
+        }
+
+        return playerId.substring(
+                0,
+                6);
     }
 
     // =====================================================
@@ -911,7 +1192,6 @@ public class GameApp extends Application {
     private boolean isLobbyShowing() {
 
         if (scene == null) {
-
             return false;
         }
 

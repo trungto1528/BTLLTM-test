@@ -31,19 +31,6 @@ public class GameWebSocketClient
     /*
      * Message gửi trước khi WebSocket kết nối xong
      * sẽ được giữ lại ở đây.
-     *
-     * Ví dụ:
-     *
-     * connect()
-     * CREATE_ROOM
-     * ↓
-     * socket chưa open
-     * ↓
-     * pendingMessages
-     * ↓
-     * onOpen()
-     * ↓
-     * flush
      */
     private final Queue<String> pendingMessages =
             new ConcurrentLinkedQueue<>();
@@ -60,13 +47,15 @@ public class GameWebSocketClient
     public void setGameScene(
             GameScene gameScene) {
 
-        this.gameScene = gameScene;
+        this.gameScene =
+                gameScene;
     }
 
     public void setMessageHandler(
             Consumer<String> messageHandler) {
 
-        this.messageHandler = messageHandler;
+        this.messageHandler =
+                messageHandler;
     }
 
     // =====================================================
@@ -86,7 +75,6 @@ public class GameWebSocketClient
         }
 
         if (connecting) {
-
             return;
         }
 
@@ -101,10 +89,6 @@ public class GameWebSocketClient
                         this)
                 .thenAccept(ws -> {
 
-                    /*
-                     * onOpen() sẽ xử lý việc
-                     * gán webSocket và flush queue.
-                     */
                     System.out.println(
                             "WebSocket connection established");
 
@@ -143,10 +127,7 @@ public class GameWebSocketClient
 
         /*
          * Socket chưa sẵn sàng:
-         *
-         * KHÔNG DROP MESSAGE.
-         *
-         * Đưa vào queue.
+         * giữ message lại.
          */
         if (ws == null
                 || ws.isOutputClosed()) {
@@ -154,10 +135,6 @@ public class GameWebSocketClient
             pendingMessages.offer(
                     message);
 
-            /*
-             * Nếu vì lý do nào đó socket chưa
-             * được connect thì tự khởi động.
-             */
             connect();
 
             return;
@@ -190,10 +167,6 @@ public class GameWebSocketClient
                             "WebSocket send failed: "
                                     + error.getMessage());
 
-                    /*
-                     * Chỉ queue lại nếu socket đã
-                     * mất trước khi gửi.
-                     */
                     if (webSocket == null
                             || webSocket.isOutputClosed()) {
 
@@ -246,17 +219,9 @@ public class GameWebSocketClient
         System.out.println(
                 "WebSocket connected");
 
-        /*
-         * Những message như CREATE_ROOM,
-         * JOIN_ROOM... được gửi trước khi socket
-         * open sẽ được gửi ở đây.
-         */
         flushPendingMessages(
                 webSocket);
 
-        /*
-         * Cho WebSocket tiếp tục nhận message.
-         */
         webSocket.request(1);
     }
 
@@ -315,9 +280,6 @@ public class GameWebSocketClient
          * =================================================
          * LOBBY / APP
          * =================================================
-         *
-         * GameApp nhận raw message và tự quyết định
-         * UI nào cần cập nhật.
          */
         if (isLobbyMessage(message)) {
 
@@ -362,6 +324,9 @@ public class GameWebSocketClient
                     "ROOM_LEFT|")
 
                 || message.startsWith(
+                    "PLAYER_LEFT|")
+
+                || message.startsWith(
                     "GAME_STARTED|")
 
                 || message.startsWith(
@@ -379,14 +344,9 @@ public class GameWebSocketClient
                 messageHandler;
 
         if (handler == null) {
-
             return;
         }
 
-        /*
-         * Lobby JavaFX UI phải được cập nhật
-         * trên JavaFX Application Thread.
-         */
         Platform.runLater(
                 () -> handler.accept(message));
     }
@@ -405,10 +365,6 @@ public class GameWebSocketClient
                 "Disconnected: "
                         + reason);
 
-        /*
-         * Chỉ clear nếu đây thực sự là
-         * socket hiện tại.
-         */
         if (this.webSocket == webSocket) {
 
             this.webSocket = null;
