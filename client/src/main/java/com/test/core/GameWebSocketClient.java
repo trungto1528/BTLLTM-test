@@ -21,7 +21,8 @@ public class GameWebSocketClient
     private GameScene gameScene;
 
     /*
-     * Nhận các message liên quan đến lobby.
+     * Nhận các message liên quan đến lobby
+     * và lifecycle của game.
      *
      * GameApp sẽ đăng ký listener này.
      */
@@ -246,8 +247,6 @@ public class GameWebSocketClient
                 "WebSocket connected");
 
         /*
-         * Quan trọng:
-         *
          * Những message như CREATE_ROOM,
          * JOIN_ROOM... được gửi trước khi socket
          * open sẽ được gửi ở đây.
@@ -334,10 +333,17 @@ public class GameWebSocketClient
                 last);
     }
 
+    // =====================================================
+    // LOBBY MESSAGE CHECK
+    // =====================================================
+
     private boolean isLobbyMessage(
             String message) {
 
         return message.startsWith(
+                    "WELCOME|")
+
+                || message.startsWith(
                     "ROOM_CREATED|")
 
                 || message.startsWith(

@@ -17,6 +17,12 @@ public class GameApp extends Application {
 
     private Stage stage;
 
+    /*
+     * Chỉ sử dụng MỘT Scene duy nhất
+     * cho toàn bộ application.
+     */
+    private Scene scene;
+
     private GameWebSocketClient network;
 
     private MainMenuView mainMenu;
@@ -105,12 +111,30 @@ public class GameApp extends Application {
                 new LobbyView(this);
 
         // =================================================
-        // START
+        // SCENE
         // =================================================
 
-        showMainMenu();
+        /*
+         * Chỉ tạo Scene MỘT LẦN.
+         *
+         * Sau này chuyển màn hình bằng:
+         *
+         * scene.setRoot(view);
+         *
+         * Không dùng:
+         *
+         * new Scene(view)
+         *
+         * nữa.
+         */
+        scene =
+                new Scene(mainMenu);
+
+        stage.setScene(scene);
 
         stage.show();
+
+        mainMenu.requestFocus();
     }
 
     // =====================================================
@@ -143,9 +167,13 @@ public class GameApp extends Application {
 
     public void showMainMenu() {
 
-        stage.setScene(
-                new Scene(mainMenu)
-        );
+        /*
+         * Scene đã tồn tại.
+         *
+         * Chỉ thay root.
+         */
+        scene.setRoot(
+                mainMenu);
 
         mainMenu.requestFocus();
     }
@@ -158,9 +186,8 @@ public class GameApp extends Application {
 
         createRoom.reset();
 
-        stage.setScene(
-                new Scene(createRoom)
-        );
+        scene.setRoot(
+                createRoom);
 
         createRoom.requestFocus();
     }
@@ -173,9 +200,8 @@ public class GameApp extends Application {
 
         joinRoom.reset();
 
-        stage.setScene(
-                new Scene(joinRoom)
-        );
+        scene.setRoot(
+                joinRoom);
 
         joinRoom.requestFocus();
     }
@@ -186,10 +212,13 @@ public class GameApp extends Application {
 
     public void showFindRoom() {
 
-        stage.setScene(
-                new Scene(findRoom)
-        );
+        scene.setRoot(
+                findRoom);
 
+        /*
+         * Bắt đầu tìm room sau khi View
+         * đã trở thành root.
+         */
         findRoom.onShow();
 
         findRoom.requestFocus();
@@ -215,9 +244,8 @@ public class GameApp extends Application {
         lobby.setHost(
                 host);
 
-        stage.setScene(
-                new Scene(lobby)
-        );
+        scene.setRoot(
+                lobby);
 
         lobby.requestFocus();
     }
@@ -288,7 +316,7 @@ public class GameApp extends Application {
                 "START_GAME");
 
         /*
-         * UI có thể hiển thị trạng thái
+         * UI hiển thị trạng thái
          * đang bắt đầu game.
          */
         lobby.setStartingStatus();
@@ -893,10 +921,11 @@ public class GameApp extends Application {
         gameScene.startLoop();
 
         /*
-         * Chuyển sang GameScene.
+         * Chuyển sang GameScene bằng
+         * Scene hiện tại.
          */
-        stage.setScene(
-                new Scene(gameScene));
+        scene.setRoot(
+                gameScene);
 
         /*
          * Nhận keyboard input.
@@ -910,13 +939,12 @@ public class GameApp extends Application {
 
     private boolean isLobbyShowing() {
 
-        if (stage.getScene() == null) {
+        if (scene == null) {
 
             return false;
         }
 
-        return stage.getScene()
-                .getRoot() == lobby;
+        return scene.getRoot() == lobby;
     }
 
     // =====================================================
