@@ -1,9 +1,12 @@
 package com.test;
 
 import org.springframework.stereotype.Component;
+import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+
+import com.test.common.InputCommand;
 
 @Component
 public class GameWebSocketHandler
@@ -17,27 +20,40 @@ public class GameWebSocketHandler
         this.gameServer = gameServer;
     }
 
+    // =========================
+    // CONNECTION
+    // =========================
+
     @Override
     public void afterConnectionEstablished(
             WebSocketSession session)
             throws Exception {
 
-        PlayerSession player = new PlayerSession(session.getId());
+        String playerId =
+                session.getId();
+
+        PlayerSession player =
+                new PlayerSession(playerId);
 
         gameServer.addPlayer(player);
 
         gameServer.addSession(
-                session.getId(),
+                playerId,
                 session);
 
         System.out.println(
                 "Client connected: "
-                        + session.getId());
+                        + playerId);
 
         session.sendMessage(
                 new TextMessage(
-                        "WELCOME|" + session.getId()));
+                        "WELCOME|"
+                                + playerId));
     }
+
+    // =========================
+    // INPUT
+    // =========================
 
     @Override
     protected void handleTextMessage(
@@ -45,19 +61,27 @@ public class GameWebSocketHandler
             TextMessage message)
             throws Exception {
 
-        PlayerSession player = gameServer.getPlayer(
-                session.getId());
+        PlayerSession player =
+                gameServer.getPlayer(
+                        session.getId());
 
         if (player == null) {
             return;
         }
 
-        String input = message.getPayload();
+        String input =
+                message.getPayload();
 
-        String[] parts = input.split("\\|");
+        String[] parts =
+                input.split("\\|");
 
+        /*
+         * Format:
+         *
+         * INPUT|sequence|action
+         */
         if (parts.length != 3
-                || !parts[0].equals("INPUT")) {
+                || !"INPUT".equals(parts[0])) {
 
             System.out.println(
                     "Invalid input: "
@@ -70,7 +94,9 @@ public class GameWebSocketHandler
 
         try {
 
-            sequence = Integer.parseInt(parts[1]);
+            sequence =
+                    Integer.parseInt(
+                            parts[1]);
 
         } catch (NumberFormatException e) {
 
@@ -81,80 +107,102 @@ public class GameWebSocketHandler
             return;
         }
 
-        String action = parts[2];
+        /*
+         * Sequence không được âm.
+         */
+        if (sequence < 0) {
 
-        switch (action) {
+            System.out.println(
+                    "Invalid negative input sequence: "
+                            + input);
 
-            case "LEFT_PRESS" -> {
-
-                player.setMovingLeft(true);
-
-                player.processInputSequence(
-                        sequence);
-            }
-
-            case "LEFT_RELEASE" -> {
-
-                player.setMovingLeft(false);
-
-                player.processInputSequence(
-                        sequence);
-            }
-
-            case "RIGHT_PRESS" -> {
-
-                player.setMovingRight(true);
-
-                player.processInputSequence(
-                        sequence);
-            }
-
-            case "RIGHT_RELEASE" -> {
-
-                player.setMovingRight(false);
-
-                player.processInputSequence(
-                        sequence);
-            }
-
-            case "JUMP_START" -> {
-
-                player.startCharging();
-
-                player.processInputSequence(
-                        sequence);
-            }
-
-            case "JUMP_RELEASE" -> {
-
-                player.releaseJump();
-
-                player.processInputSequence(
-                        sequence);
-            }
-
-            default -> {
-
-                System.out.println(
-                        "Unknown action: "
-                                + action);
-            }
+            return;
         }
+
+        String action =
+                parts[2];
+
+        /*
+         * Chỉ chấp nhận những action mà
+         * game thực sự hỗ trợ.
+         */
+        if (!isValidAction(action)) {
+
+            System.out.println(
+                    "Unknown action: "
+                            + action);
+
+            return;
+        }
+
+        /*
+         * =====================================================
+         * IMPORTANT
+         * =====================================================
+         *
+         * WebSocket thread KHÔNG được trực tiếp
+         * thay đổi gameplay state.
+         *
+         * Không gọi:
+         *
+         *     setMovingLeft()
+         *     setMovingRight()
+         *     startCharging()
+         *     releaseJump()
+         *
+         * ở đây.
+         *
+         * Input được đưa vào queue.
+         *
+         * GameServer.tick() ở 60 TPS sẽ lấy
+         * input từ queue và xử lý tại tick boundary.
+         */
+        player.queueInput(
+                new InputCommand(
+                        sequence,
+                        action));
     }
+
+    // =========================
+    // INPUT VALIDATION
+    // =========================
+
+    private boolean isValidAction(
+            String action) {
+
+        return switch (action) {
+
+            case "LEFT_PRESS",
+                 "LEFT_RELEASE",
+                 "RIGHT_PRESS",
+                 "RIGHT_RELEASE",
+                 "JUMP_START",
+                 "JUMP_RELEASE" -> true;
+
+            default -> false;
+        };
+    }
+
+    // =========================
+    // DISCONNECT
+    // =========================
 
     @Override
     public void afterConnectionClosed(
             WebSocketSession session,
-            org.springframework.web.socket.CloseStatus status) {
+            CloseStatus status) {
+
+        String playerId =
+                session.getId();
 
         gameServer.removePlayer(
-                session.getId());
+                playerId);
 
         gameServer.removeSession(
-                session.getId());
+                playerId);
 
         System.out.println(
                 "Client disconnected: "
-                        + session.getId());
+                        + playerId);
     }
 }

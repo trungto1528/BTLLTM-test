@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
+import com.test.common.GameConfig;
 import com.test.common.PhysicsEngine;
 import com.test.common.PlatformData;
 import com.test.common.PlayerState;
@@ -30,7 +31,16 @@ public class GameServer {
     private final List<PlatformData> platforms =
             new ArrayList<>();
 
-    private double snapshotTimer = 0;
+    /*
+     * Logical game tick.
+     *
+     * Game simulation chạy đúng:
+     *
+     *     60 tick / second
+     *
+     * Không phụ thuộc FPS hoặc network rate.
+     */
+    private long currentTick = 0;
 
     public GameServer() {
         createMap();
@@ -167,6 +177,16 @@ public class GameServer {
         return players;
     }
 
+    /**
+     * Logical server tick hiện tại.
+     *
+     * Dùng cho network snapshot / reconciliation.
+     */
+    public long getCurrentTick() {
+
+        return currentTick;
+    }
+
     // =========================
     // GAME LOOP
     // =========================
@@ -177,23 +197,30 @@ public class GameServer {
         Thread gameThread =
                 new Thread(() -> {
 
-                    final double deltaTime =
-                            1.0 / 60.0;
+                    /*
+                     * Dùng deadline tuyệt đối thay vì:
+                     *
+                     *     tick();
+                     *     sleep(16.666ms);
+                     *
+                     * Cách đó sẽ gây drift vì thời gian
+                     * thực hiện tick cũng được cộng vào
+                     * chu kỳ tiếp theo.
+                     */
+                    long nextTickTime =
+                            System.nanoTime();
 
-                    while (true) {
+                    while (!Thread.currentThread()
+                            .isInterrupted()) {
 
-                        long start =
-                                System.nanoTime();
+                        nextTickTime +=
+                                GameConfig.TICK_NANOS;
 
-                        update(deltaTime);
-
-                        long elapsed =
-                                System.nanoTime()
-                                        - start;
+                        tick();
 
                         long sleepNanos =
-                                16_666_667L
-                                        - elapsed;
+                                nextTickTime
+                                        - System.nanoTime();
 
                         if (sleepNanos > 0) {
 
@@ -212,6 +239,18 @@ public class GameServer {
 
                                 break;
                             }
+
+                        } else {
+
+                            /*
+                             * Server đang chậm hơn timeline
+                             * thực tế.
+                             *
+                             * Không chạy bù hàng loạt tick,
+                             * tránh tạo vòng lặp quá tải.
+                             */
+                            nextTickTime =
+                                    System.nanoTime();
                         }
                     }
 
@@ -225,36 +264,94 @@ public class GameServer {
         gameThread.start();
 
         System.out.println(
-                "Game server loop started");
+                "Game server loop started at "
+                        + GameConfig.TICK_RATE
+                        + " TPS");
     }
 
     // =========================
-    // UPDATE
+    // GAME TICK
     // =========================
 
-    private void update(
-            double deltaTime) {
+    /**
+     * Chạy đúng một logical game tick.
+     *
+     * Thứ tự rất quan trọng:
+     *
+     * 1. Tăng tick
+     * 2. Process input queue
+     * 3. Update jump charge
+     * 4. Update physics
+     * 5. Broadcast snapshot nếu đến thời điểm
+     *
+     * Tất cả simulation sử dụng:
+     *
+     *     GameConfig.TICK_DT
+     */
+    private void tick() {
+
+        currentTick++;
 
         for (PlayerSession player
                 : players.values()) {
 
-            player.updateCharge(
-                    deltaTime);
+            /*
+             * =================================================
+             * 1. PROCESS INPUT
+             * =================================================
+             *
+             * Input từ WebSocket không được áp dụng
+             * ngay khi packet đến.
+             *
+             * Nó được xử lý tại đây, ở tick boundary.
+             */
+            player.processQueuedInputs();
 
-            physicsEngine.update(
+            /*
+             * =================================================
+             * 2. JUMP CHARGE
+             * =================================================
+             *
+             * Charge sử dụng fixed 1/60 second.
+             */
+            player.tickCharge();
+
+            /*
+             * =================================================
+             * 3. PHYSICS
+             * =================================================
+             *
+             * PhysicsEngine tự sử dụng:
+             *
+             *     GameConfig.TICK_DT
+             */
+            physicsEngine.tick(
                     player.getPlayerState(),
-                    deltaTime,
                     platforms,
                     player.isMovingLeft(),
                     player.isMovingRight());
         }
 
-        snapshotTimer += deltaTime;
-
-        if (snapshotTimer
-                >= 1.0 / 20.0) {
-
-            snapshotTimer = 0;
+        /*
+         * =====================================================
+         * NETWORK SNAPSHOT
+         * =====================================================
+         *
+         * Simulation:
+         *
+         *     60 TPS
+         *
+         * Network:
+         *
+         *     20 snapshots / second
+         *
+         * 60 / 20 = 3
+         *
+         * => mỗi 3 game tick gửi một snapshot.
+         */
+        if (currentTick
+                % GameConfig.SNAPSHOT_INTERVAL
+                == 0) {
 
             broadcastStates();
         }
@@ -267,7 +364,33 @@ public class GameServer {
     private void broadcastStates() {
 
         /*
-         * Tạo snapshot của TẤT CẢ player.
+         * Snapshot có server tick để client biết
+         * chính xác state thuộc logical tick nào.
+         *
+         * Format:
+         *
+         * WORLD_STATE
+         * |TICK|123
+         *
+         * |PLAYER|
+         * id
+         * sequence
+         * x
+         * y
+         * velocityX
+         * velocityY
+         * onGround
+         * chargingJump
+         * chargingUp
+         * maxChargeTimer
+         * hasSelectedDirection
+         * jumpPower
+         * facingDirection
+         * movingLeft
+         * movingRight
+         *
+         * Các field gameplay state đều được gửi
+         * để client có thể reconciliation chính xác.
          */
         StringBuilder message =
                 new StringBuilder();
@@ -275,6 +398,14 @@ public class GameServer {
         message.append(
                 "WORLD_STATE");
 
+        message.append("|TICK|");
+
+        message.append(
+                currentTick);
+
+        /*
+         * Tạo snapshot của tất cả player.
+         */
         for (PlayerSession player
                 : players.values()) {
 
@@ -283,16 +414,28 @@ public class GameServer {
 
             message.append("|PLAYER|");
 
+            /*
+             * playerId
+             */
             message.append(
                     state.getPlayerId());
 
             message.append("|");
 
+            /*
+             * lastProcessedInput
+             *
+             * Client dùng sequence này để
+             * reconciliation.
+             */
             message.append(
                     player.getLastProcessedInput());
 
             message.append("|");
 
+            /*
+             * Position
+             */
             message.append(
                     state.getX());
 
@@ -303,6 +446,9 @@ public class GameServer {
 
             message.append("|");
 
+            /*
+             * Velocity
+             */
             message.append(
                     state.getVelocityX());
 
@@ -313,30 +459,86 @@ public class GameServer {
 
             message.append("|");
 
+            /*
+             * Ground state
+             */
             message.append(
                     state.isOnGround());
 
             message.append("|");
 
+            /*
+             * Jump charge state
+             */
             message.append(
                     state.isChargingJump());
 
             message.append("|");
 
+            /*
+             * Charge direction:
+             *
+             * true  = đang tăng jumpPower
+             * false = đang giữ MAX / giảm
+             */
+            message.append(
+                    state.isChargingUp());
+
+            message.append("|");
+
+            /*
+             * Thời gian đã giữ MAX.
+             */
+            message.append(
+                    state.getMaxChargeTimer());
+
+            message.append("|");
+
+            /*
+             * Người chơi đã chọn hướng A/D
+             * trong cú jump hiện tại chưa.
+             */
+            message.append(
+                    state.hasSelectedDirection());
+
+            message.append("|");
+
+            /*
+             * Current jump power.
+             */
             message.append(
                     state.getJumpPower());
 
             message.append("|");
 
+            /*
+             * Facing direction.
+             */
             message.append(
                     state.getFacingDirection());
+
+            message.append("|");
+
+            /*
+             * Current movement input state.
+             *
+             * Đây là state cần thiết cho
+             * reconciliation chính xác.
+             */
+            message.append(
+                    player.isMovingLeft());
+
+            message.append("|");
+
+            message.append(
+                    player.isMovingRight());
         }
 
         String finalMessage =
                 message.toString();
 
         /*
-         * Gửi cùng một snapshot
+         * Gửi cùng một authoritative snapshot
          * cho tất cả client.
          */
         for (WebSocketSession session

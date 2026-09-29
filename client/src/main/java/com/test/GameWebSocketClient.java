@@ -8,6 +8,9 @@ import java.util.concurrent.CompletionStage;
 public class GameWebSocketClient
         implements WebSocket.Listener {
 
+    private static final String SERVER_URI =
+            "ws://localhost:8080/game";
+
     private WebSocket webSocket;
 
     private GameScene gameScene;
@@ -16,14 +19,18 @@ public class GameWebSocketClient
         this.gameScene = gameScene;
     }
 
+    // =========================
+    // CONNECT
+    // =========================
+
     public void connect() {
 
-        HttpClient client = HttpClient.newHttpClient();
+        HttpClient client =
+                HttpClient.newHttpClient();
 
         client.newWebSocketBuilder()
                 .buildAsync(
-                        URI.create(
-                                "ws://localhost:8080/game"),
+                        URI.create(SERVER_URI),
                         this)
                 .thenAccept(ws -> {
 
@@ -43,34 +50,35 @@ public class GameWebSocketClient
                 });
     }
 
+    // =========================
+    // SEND
+    // =========================
+
     public void send(String message) {
 
-        if (webSocket == null) {
+        WebSocket ws = webSocket;
+
+        if (ws == null) {
             System.out.println(
                     "WebSocket not connected");
             return;
         }
 
-        webSocket.sendText(
-                message,
-                true);
+        if (!ws.isOutputClosed()) {
+
+            ws.sendText(
+                    message,
+                    true);
+        }
     }
 
     public void sendInput(String input) {
         send(input);
     }
 
-    @Override
-    public void onOpen(
-            WebSocket webSocket) {
-
-        this.webSocket = webSocket;
-
-        System.out.println(
-                "Connected to server");
-
-        WebSocket.Listener.super.onOpen(webSocket);
-    }
+    // =========================
+    // RECEIVE
+    // =========================
 
     @Override
     public CompletionStage<?> onText(
@@ -78,28 +86,36 @@ public class GameWebSocketClient
             CharSequence data,
             boolean last) {
 
-        String message = data.toString();
+        String message =
+                data.toString();
 
         System.out.println(
-                "Server: " + message);
+                "[WS RECEIVE] " + message);
 
-        if (gameScene != null) {
+        GameScene scene = gameScene;
+
+        if (scene != null) {
 
             if (message.startsWith("WELCOME|")) {
 
-                String playerId = message.substring("WELCOME|".length());
+                String playerId =
+                        message.substring(
+                                "WELCOME|".length());
 
-                gameScene.setLocalPlayerId(
-                        playerId);
+                javafx.application.Platform.runLater(
+                        () -> scene.setLocalPlayerId(
+                                playerId));
 
-            } else if (message.startsWith("PLAYER_STATE|")) {
+            } else if (message.startsWith(
+                    "PLAYER_STATE|")) {
 
-                gameScene.handlePlayerState(
+                scene.handlePlayerState(
                         message);
 
-            } else if (message.startsWith("WORLD_STATE|")) {
+            } else if (message.startsWith(
+                    "WORLD_STATE|")) {
 
-                gameScene.handleWorldState(
+                scene.handleWorldState(
                         message);
             }
         }
@@ -109,6 +125,10 @@ public class GameWebSocketClient
                 data,
                 last);
     }
+
+    // =========================
+    // CLOSE
+    // =========================
 
     @Override
     public CompletionStage<?> onClose(
@@ -120,11 +140,17 @@ public class GameWebSocketClient
                 "Disconnected: "
                         + reason);
 
+        this.webSocket = null;
+
         return WebSocket.Listener.super.onClose(
                 webSocket,
                 statusCode,
                 reason);
     }
+
+    // =========================
+    // ERROR
+    // =========================
 
     @Override
     public void onError(

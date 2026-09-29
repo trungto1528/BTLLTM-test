@@ -1,9 +1,16 @@
-package com.test;
+package com.test.common;
 
 public class InputCommand {
 
     private final int sequence;
     private final String action;
+
+    /*
+     * Giữ field này để tương thích với code client hiện tại.
+     *
+     * Server không sử dụng giá trị này để tính jump.
+     * Jump power authoritative được tính từ game tick.
+     */
     private final double jumpPower;
 
     public InputCommand(
