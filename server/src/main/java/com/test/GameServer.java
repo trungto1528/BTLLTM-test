@@ -32,17 +32,13 @@ public class GameServer {
             new ArrayList<>();
 
     /*
-     * Logical game tick.
-     *
-     * Game simulation chạy đúng:
-     *
-     *     60 tick / second
-     *
-     * Không phụ thuộc FPS hoặc network rate.
+     * Quản lý toàn bộ room.
      */
-    private long currentTick = 0;
+    private final RoomManager roomManager =
+            new RoomManager();
 
     public GameServer() {
+
         createMap();
     }
 
@@ -129,9 +125,18 @@ public class GameServer {
                         0, 1780, 800, 20));
     }
 
-    // =========================
+    // =====================================================
+    // ROOM MANAGER
+    // =====================================================
+
+    public RoomManager getRoomManager() {
+
+        return roomManager;
+    }
+
+    // =====================================================
     // SESSION
-    // =========================
+    // =====================================================
 
     public void addSession(
             String playerId,
@@ -148,9 +153,15 @@ public class GameServer {
         sessions.remove(playerId);
     }
 
-    // =========================
+    public WebSocketSession getSession(
+            String playerId) {
+
+        return sessions.get(playerId);
+    }
+
+    // =====================================================
     // PLAYER
-    // =========================
+    // =====================================================
 
     public void addPlayer(
             PlayerSession player) {
@@ -177,19 +188,9 @@ public class GameServer {
         return players;
     }
 
-    /**
-     * Logical server tick hiện tại.
-     *
-     * Dùng cho network snapshot / reconciliation.
-     */
-    public long getCurrentTick() {
-
-        return currentTick;
-    }
-
-    // =========================
+    // =====================================================
     // GAME LOOP
-    // =========================
+    // =====================================================
 
     @PostConstruct
     public void start() {
@@ -203,9 +204,7 @@ public class GameServer {
                      *     tick();
                      *     sleep(16.666ms);
                      *
-                     * Cách đó sẽ gây drift vì thời gian
-                     * thực hiện tick cũng được cộng vào
-                     * chu kỳ tiếp theo.
+                     * Cách đó sẽ gây drift.
                      */
                     long nextTickTime =
                             System.nanoTime();
@@ -246,8 +245,7 @@ public class GameServer {
                              * Server đang chậm hơn timeline
                              * thực tế.
                              *
-                             * Không chạy bù hàng loạt tick,
-                             * tránh tạo vòng lặp quá tải.
+                             * Không chạy bù hàng loạt tick.
                              */
                             nextTickTime =
                                     System.nanoTime();
@@ -269,105 +267,139 @@ public class GameServer {
                         + " TPS");
     }
 
-    // =========================
+    // =====================================================
     // GAME TICK
-    // =========================
+    // =====================================================
 
     /**
-     * Chạy đúng một logical game tick.
+     * Chạy một logical game tick.
      *
-     * Thứ tự rất quan trọng:
+     * Quan trọng:
      *
-     * 1. Tăng tick
-     * 2. Process input queue
-     * 3. Update jump charge
-     * 4. Update physics
-     * 5. Broadcast snapshot nếu đến thời điểm
+     * Không còn xử lý toàn bộ players global.
      *
-     * Tất cả simulation sử dụng:
+     * Thay vào đó:
      *
-     *     GameConfig.TICK_DT
+     *     GameServer
+     *          |
+     *          +-- Room A
+     *          |     +-- Player
+     *          |     +-- Player
+     *          |
+     *          +-- Room B
+     *                +-- Player
+     *
+     * Chỉ room đã STARTED mới được simulation.
      */
     private void tick() {
 
-        currentTick++;
+        /*
+         * Một global 60 TPS loop duy nhất.
+         *
+         * Không tạo thread riêng cho từng room.
+         */
+        for (Room room
+                : roomManager.getRooms()) {
 
-        for (PlayerSession player
-                : players.values()) {
+            if (!room.isStarted()) {
+
+                continue;
+            }
+
+            /*
+             * Room có logical timeline riêng.
+             *
+             * Room mới START_GAME sẽ bắt đầu:
+             *
+             *     tick = 1
+             *
+             * ở game tick đầu tiên.
+             */
+            long roomTick =
+                    room.incrementTick();
 
             /*
              * =================================================
              * 1. PROCESS INPUT
              * =================================================
-             *
-             * Input từ WebSocket không được áp dụng
-             * ngay khi packet đến.
-             *
-             * Nó được xử lý tại đây, ở tick boundary.
              */
-            player.processQueuedInputs();
+            for (PlayerSession player
+                    : room.getPlayers()) {
+
+                player.processQueuedInputs();
+            }
 
             /*
              * =================================================
              * 2. JUMP CHARGE
              * =================================================
-             *
-             * Charge sử dụng fixed 1/60 second.
              */
-            player.tickCharge();
+            for (PlayerSession player
+                    : room.getPlayers()) {
+
+                player.tickCharge();
+            }
 
             /*
              * =================================================
              * 3. PHYSICS
              * =================================================
              *
-             * PhysicsEngine tự sử dụng:
-             *
-             *     GameConfig.TICK_DT
+             * Giữ nguyên PhysicsEngine hiện tại.
              */
-            physicsEngine.tick(
-                    player.getPlayerState(),
-                    platforms,
-                    player.isMovingLeft(),
-                    player.isMovingRight());
-        }
+            for (PlayerSession player
+                    : room.getPlayers()) {
 
-        /*
-         * =====================================================
-         * NETWORK SNAPSHOT
-         * =====================================================
-         *
-         * Simulation:
-         *
-         *     60 TPS
-         *
-         * Network:
-         *
-         *     20 snapshots / second
-         *
-         * 60 / 20 = 3
-         *
-         * => mỗi 3 game tick gửi một snapshot.
-         */
-        if (currentTick
-                % GameConfig.SNAPSHOT_INTERVAL
-                == 0) {
+                physicsEngine.tick(
+                        player.getPlayerState(),
+                        platforms,
+                        player.isMovingLeft(),
+                        player.isMovingRight());
+            }
 
-            broadcastStates();
+            /*
+             * =================================================
+             * 4. NETWORK SNAPSHOT
+             * =================================================
+             *
+             * 60 TPS simulation
+             * 20 snapshots / second
+             *
+             * => mỗi 3 tick gửi snapshot.
+             */
+            if (roomTick
+                    % GameConfig.SNAPSHOT_INTERVAL
+                    == 0) {
+
+                broadcastStates(room);
+            }
         }
     }
 
-    // =========================
+    // =====================================================
     // MULTIPLAYER BROADCAST
-    // =========================
+    // =====================================================
 
-    private void broadcastStates() {
+    /**
+     * Broadcast authoritative snapshot của MỘT room.
+     *
+     * Tuyệt đối không gửi player của room này
+     * sang room khác.
+     */
+    private void broadcastStates(
+            Room room) {
 
         /*
-         * Snapshot có server tick để client biết
-         * chính xác state thuộc logical tick nào.
-         *
-         * Format:
+         * Không broadcast room đã empty.
+         */
+        if (room == null
+                || room.isEmpty()) {
+
+            return;
+        }
+
+        /*
+         * Snapshot format:
          *
          * WORLD_STATE
          * |TICK|123
@@ -388,9 +420,6 @@ public class GameServer {
          * facingDirection
          * movingLeft
          * movingRight
-         *
-         * Các field gameplay state đều được gửi
-         * để client có thể reconciliation chính xác.
          */
         StringBuilder message =
                 new StringBuilder();
@@ -401,22 +430,20 @@ public class GameServer {
         message.append("|TICK|");
 
         message.append(
-                currentTick);
+                room.getCurrentTick());
 
         /*
-         * Tạo snapshot của tất cả player.
+         * Chỉ lấy player thuộc room này.
          */
         for (PlayerSession player
-                : players.values()) {
+                : room.getPlayers()) {
 
             PlayerState state =
                     player.getPlayerState();
 
             message.append("|PLAYER|");
 
-            /*
-             * playerId
-             */
+            // playerId
             message.append(
                     state.getPlayerId());
 
@@ -425,17 +452,14 @@ public class GameServer {
             /*
              * lastProcessedInput
              *
-             * Client dùng sequence này để
-             * reconciliation.
+             * Client dùng cho reconciliation.
              */
             message.append(
                     player.getLastProcessedInput());
 
             message.append("|");
 
-            /*
-             * Position
-             */
+            // Position
             message.append(
                     state.getX());
 
@@ -446,9 +470,7 @@ public class GameServer {
 
             message.append("|");
 
-            /*
-             * Velocity
-             */
+            // Velocity
             message.append(
                     state.getVelocityX());
 
@@ -459,17 +481,13 @@ public class GameServer {
 
             message.append("|");
 
-            /*
-             * Ground state
-             */
+            // Ground state
             message.append(
                     state.isOnGround());
 
             message.append("|");
 
-            /*
-             * Jump charge state
-             */
+            // Jump charge state
             message.append(
                     state.isChargingJump());
 
@@ -486,16 +504,14 @@ public class GameServer {
 
             message.append("|");
 
-            /*
-             * Thời gian đã giữ MAX.
-             */
+            // Thời gian đã giữ MAX
             message.append(
                     state.getMaxChargeTimer());
 
             message.append("|");
 
             /*
-             * Người chơi đã chọn hướng A/D
+             * Người chơi đã chọn hướng
              * trong cú jump hiện tại chưa.
              */
             message.append(
@@ -503,27 +519,20 @@ public class GameServer {
 
             message.append("|");
 
-            /*
-             * Current jump power.
-             */
+            // Current jump power
             message.append(
                     state.getJumpPower());
 
             message.append("|");
 
-            /*
-             * Facing direction.
-             */
+            // Facing direction
             message.append(
                     state.getFacingDirection());
 
             message.append("|");
 
             /*
-             * Current movement input state.
-             *
-             * Đây là state cần thiết cho
-             * reconciliation chính xác.
+             * Movement input state.
              */
             message.append(
                     player.isMovingLeft());
@@ -538,11 +547,19 @@ public class GameServer {
                 message.toString();
 
         /*
-         * Gửi cùng một authoritative snapshot
-         * cho tất cả client.
+         * =====================================================
+         * SEND ONLY TO THIS ROOM
+         * =====================================================
          */
-        for (WebSocketSession session
-                : sessions.values()) {
+        for (PlayerSession player
+                : room.getPlayers()) {
+
+            String playerId =
+                    player.getPlayerState()
+                            .getPlayerId();
+
+            WebSocketSession session =
+                    sessions.get(playerId);
 
             if (session == null
                     || !session.isOpen()) {
@@ -559,7 +576,9 @@ public class GameServer {
             } catch (Exception e) {
 
                 System.err.println(
-                        "Failed to broadcast state: "
+                        "Failed to send state to "
+                                + playerId
+                                + ": "
                                 + e.getMessage());
             }
         }
