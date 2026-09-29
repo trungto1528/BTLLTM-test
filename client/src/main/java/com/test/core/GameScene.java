@@ -117,8 +117,17 @@ public class GameScene extends Pane {
 
     private String localPlayerId;
 
+    /*
+     * Sequence của input cuối cùng mà
+     * server đã authoritative ACK.
+     */
     private int lastServerSequence = 0;
 
+    /*
+     * Tick server cuối cùng đã nhận.
+     *
+     * Dùng để bỏ snapshot cũ.
+     */
     private long lastServerTick = 0;
 
     /*
@@ -640,22 +649,54 @@ public class GameScene extends Pane {
             RemoteSnapshot snapshot) {
 
         /*
-         * Không rollback về snapshot cũ hơn
-         * snapshot đã xử lý.
+         * =================================================
+         * QUAN TRỌNG
+         * =================================================
+         *
+         * Server gửi WORLD_STATE liên tục.
+         *
+         * Nhưng không phải WORLD_STATE nào cũng
+         * chứa ACK mới cho local input.
+         *
+         * Nếu sequence không tăng mà vẫn
+         * applyServerState(), local player sẽ:
+         *
+         *     prediction
+         *          ↓
+         *     server position cũ
+         *          ↓
+         *     prediction
+         *          ↓
+         *     server position cũ
+         *
+         * => GIẬT / RUNG.
+         *
+         * Vì vậy chỉ reconciliation khi server
+         * xác nhận một sequence mới.
          */
-        if (serverTick < lastServerTick) {
+
+        if (snapshot.sequence
+                <= lastServerSequence) {
+
             return;
         }
 
         /*
-         * ACK.
+         * Lưu client tick hiện tại trước khi
+         * restore authoritative state.
          */
-        if (snapshot.sequence
-                > lastServerSequence) {
+        long targetClientTick =
+                clientTick;
 
-            lastServerSequence =
-                    snapshot.sequence;
-        }
+        /*
+         * =================================================
+         * ACK
+         * =================================================
+         *
+         * Server đã xử lý đến input sequence này.
+         */
+        lastServerSequence =
+                snapshot.sequence;
 
         /*
          * Xóa input server đã xử lý.
@@ -666,18 +707,9 @@ public class GameScene extends Pane {
                                 <= lastServerSequence);
 
         /*
-         * Lưu client tick hiện tại trước
-         * khi restore server state.
-         */
-        long targetClientTick =
-                clientTick;
-
-        /*
-         * Restore authoritative state.
-         *
-         * ClientPlayerController phiên bản mới
-         * sẽ khôi phục toàn bộ simulation state,
-         * bao gồm charge state và movement state.
+         * =================================================
+         * RESTORE AUTHORITATIVE STATE
+         * =================================================
          */
         controller.applyServerState(
                 snapshot.x,
@@ -719,7 +751,11 @@ public class GameScene extends Pane {
         }
 
         /*
-         * Replay tất cả input chưa được ACK
+         * =================================================
+         * REPLAY
+         * =================================================
+         *
+         * Replay tất cả input chưa được server ACK
          * từ serverTick + 1 đến clientTick.
          */
         for (long tick =
@@ -793,6 +829,18 @@ public class GameScene extends Pane {
 
         String playerId =
                 snapshot.playerId;
+
+        /*
+         * Defensive guard:
+         *
+         * local player tuyệt đối không được
+         * xuất hiện trong remotePlayers.
+         */
+        if (playerId.equals(
+                localPlayerId)) {
+
+            return;
+        }
 
         Player remote =
                 remotePlayers.get(playerId);
@@ -1063,6 +1111,14 @@ public class GameScene extends Pane {
                     Integer.parseInt(
                             parts[2]);
 
+            /*
+             * PLAYER_STATE cũng có thể ACK input.
+             *
+             * Không reconcile ở đây.
+             *
+             * WORLD_STATE mới chứa đầy đủ
+             * authoritative state để reconciliation.
+             */
             if (serverSequence
                     > lastServerSequence) {
 
