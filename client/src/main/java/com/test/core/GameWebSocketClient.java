@@ -1,4 +1,4 @@
-package com.test;
+package com.test.core;
 
 import java.net.URI;
 import java.net.http.HttpClient;

@@ -1,4 +1,4 @@
-package com.test;
+package com.test.core;
 
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
