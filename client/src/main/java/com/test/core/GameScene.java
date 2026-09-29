@@ -78,6 +78,36 @@ public class GameScene extends Pane {
     private final ClientPlayerController controller;
 
     // =========================
+    // LOCAL RENDER INTERPOLATION
+    // =========================
+    //
+    // Simulation chạy fixed 60 TPS.
+    //
+    // Không render trực tiếp state hiện tại
+    // vì như vậy khi FPS > 60 sẽ dễ nhìn thấy
+    // chuyển động theo từng bước simulation.
+    //
+    // Render sẽ nội suy:
+    //
+    // previous simulation state
+    //          ↓
+    //       alpha
+    //          ↓
+    // current simulation state
+    //
+    // alpha = tickAccumulator / TICK_DT
+    //
+    // =========================
+
+    private double previousLocalX;
+    private double previousLocalY;
+
+    private double currentLocalX;
+    private double currentLocalY;
+
+    private boolean localRenderInitialized;
+
+    // =========================
     // REMOTE PLAYERS
     // =========================
 
@@ -119,21 +149,17 @@ public class GameScene extends Pane {
 
     /*
      * Sequence của input cuối cùng mà
-     * server đã authoritative ACK.
+     * WORLD_STATE đã authoritative ACK.
      */
     private int lastServerSequence = 0;
 
     /*
      * Tick server cuối cùng đã nhận.
-     *
-     * Dùng để bỏ snapshot cũ.
      */
     private long lastServerTick = 0;
 
     /*
      * Logical client tick.
-     *
-     * Không phụ thuộc FPS render.
      */
     private long clientTick = 0;
 
@@ -194,19 +220,20 @@ public class GameScene extends Pane {
                 VIEW_WIDTH,
                 VIEW_HEIGHT);
 
-        /*
-         * WORLD
-         */
+        // =========================
+        // WORLD
+        // =========================
 
         world.setPrefSize(
                 MAP_WIDTH,
                 MAP_HEIGHT);
 
-        getChildren().add(world);
+        getChildren().add(
+                world);
 
-        /*
-         * PLAYER
-         */
+        // =========================
+        // PLAYER
+        // =========================
 
         player =
                 new Player(
@@ -223,14 +250,33 @@ public class GameScene extends Pane {
         controller.getState().setY(
                 player.getY());
 
-        controller.getState().setOnGround(true);
+        controller.getState().setOnGround(
+                true);
+
+        /*
+         * Khởi tạo render buffer.
+         */
+        previousLocalX =
+                player.getX();
+
+        previousLocalY =
+                player.getY();
+
+        currentLocalX =
+                player.getX();
+
+        currentLocalY =
+                player.getY();
+
+        localRenderInitialized =
+                true;
 
         world.getChildren().add(
                 player);
 
-        /*
-         * JUMP POWER BAR
-         */
+        // =========================
+        // JUMP POWER BAR
+        // =========================
 
         jumpBarBackground.setFill(
                 Color.GRAY);
@@ -244,27 +290,27 @@ public class GameScene extends Pane {
         world.getChildren().add(
                 jumpBarFill);
 
-        /*
-         * MAP
-         */
+        // =========================
+        // MAP
+        // =========================
 
         createMap();
 
-        /*
-         * INPUT
-         */
+        // =========================
+        // INPUT
+        // =========================
 
         setupInput();
 
-        /*
-         * CAMERA
-         */
+        // =========================
+        // CAMERA
+        // =========================
 
         updateCamera();
 
-        /*
-         * FOCUS
-         */
+        // =========================
+        // FOCUS
+        // =========================
 
         javafx.application.Platform.runLater(
                 this::requestFocus);
@@ -280,14 +326,6 @@ public class GameScene extends Pane {
         this.localPlayerId =
                 playerId;
 
-        /*
-         * Controller được tạo trước khi server
-         * gửi WELCOME.
-         *
-         * State ban đầu vẫn có thể dùng
-         * local-player, nhưng từ thời điểm này
-         * ID authoritative là playerId server.
-         */
         controller.getState().setPlayerId(
                 playerId);
 
@@ -319,28 +357,6 @@ public class GameScene extends Pane {
             return;
         }
 
-        /*
-         * WORLD_STATE
-         *
-         * |TICK|123
-         *
-         * |PLAYER|
-         * playerId
-         * sequence
-         * x
-         * y
-         * velocityX
-         * velocityY
-         * onGround
-         * chargingJump
-         * chargingUp
-         * maxChargeTimer
-         * hasSelectedDirection
-         * jumpPower
-         * facingDirection
-         * movingLeft
-         * movingRight
-         */
         if (!"WORLD_STATE".equals(parts[0])) {
             return;
         }
@@ -359,7 +375,8 @@ public class GameScene extends Pane {
         try {
 
             serverTick =
-                    Long.parseLong(parts[2]);
+                    Long.parseLong(
+                            parts[2]);
 
         } catch (NumberFormatException e) {
 
@@ -371,9 +388,9 @@ public class GameScene extends Pane {
         }
 
         /*
-         * Parse snapshot ở WebSocket thread.
+         * Parse network data trước.
          *
-         * Không đụng JavaFX Node tại đây.
+         * Không đụng JavaFX Node ở WebSocket thread.
          */
         List<RemoteSnapshot> snapshots =
                 new ArrayList<>();
@@ -390,6 +407,7 @@ public class GameScene extends Pane {
 
             /*
              * PLAYER
+             *
              * + playerId
              * + sequence
              * + x
@@ -406,7 +424,7 @@ public class GameScene extends Pane {
              * + movingLeft
              * + movingRight
              *
-             * => 15 fields sau PLAYER.
+             * = 15 fields sau PLAYER.
              */
             if (index + 15 >= parts.length) {
 
@@ -495,10 +513,6 @@ public class GameScene extends Pane {
                                 movingLeft,
                                 movingRight));
 
-                /*
-                 * PLAYER marker + 15 fields
-                 * = 16 positions.
-                 */
                 index += 16;
 
             } catch (Exception e) {
@@ -512,12 +526,12 @@ public class GameScene extends Pane {
         }
 
         /*
-         * Chuyển snapshot sang JavaFX thread.
+         * Chuyển sang JavaFX thread.
          */
         javafx.application.Platform.runLater(() -> {
 
             /*
-             * Không xử lý snapshot cũ.
+             * Bỏ snapshot cũ.
              */
             if (serverTick < lastServerTick) {
                 return;
@@ -649,57 +663,30 @@ public class GameScene extends Pane {
             RemoteSnapshot snapshot) {
 
         /*
-         * =================================================
-         * QUAN TRỌNG
-         * =================================================
+         * Chỉ reconciliation khi server ACK
+         * một input sequence mới.
          *
-         * Server gửi WORLD_STATE liên tục.
-         *
-         * Nhưng không phải WORLD_STATE nào cũng
-         * chứa ACK mới cho local input.
-         *
-         * Nếu sequence không tăng mà vẫn
-         * applyServerState(), local player sẽ:
-         *
-         *     prediction
-         *          ↓
-         *     server position cũ
-         *          ↓
-         *     prediction
-         *          ↓
-         *     server position cũ
-         *
-         * => GIẬT / RUNG.
-         *
-         * Vì vậy chỉ reconciliation khi server
-         * xác nhận một sequence mới.
+         * Nếu snapshot chỉ là snapshot mới
+         * nhưng sequence không đổi thì không
+         * được restore state local.
          */
-
         if (snapshot.sequence
                 <= lastServerSequence) {
 
             return;
         }
 
-        /*
-         * Lưu client tick hiện tại trước khi
-         * restore authoritative state.
-         */
         long targetClientTick =
                 clientTick;
 
         /*
-         * =================================================
-         * ACK
-         * =================================================
-         *
-         * Server đã xử lý đến input sequence này.
+         * ACK mới.
          */
         lastServerSequence =
                 snapshot.sequence;
 
         /*
-         * Xóa input server đã xử lý.
+         * Xóa những input server đã xử lý.
          */
         pendingInputs.removeIf(
                 input ->
@@ -707,9 +694,7 @@ public class GameScene extends Pane {
                                 <= lastServerSequence);
 
         /*
-         * =================================================
-         * RESTORE AUTHORITATIVE STATE
-         * =================================================
+         * Restore authoritative state.
          */
         controller.applyServerState(
                 snapshot.x,
@@ -727,46 +712,30 @@ public class GameScene extends Pane {
                 snapshot.movingRight);
 
         /*
-         * Server snapshot có thể đã ở đúng hoặc
-         * cao hơn client tick.
+         * Server đã đi tới hoặc vượt client.
          */
         if (targetClientTick
                 <= serverTick) {
 
-            /*
-             * Trong trường hợp server đã đi trước,
-             * đồng bộ logical client tick về server.
-             *
-             * Không được giảm clientTick.
-             */
             if (clientTick < serverTick) {
 
                 clientTick =
                         serverTick;
             }
 
-            syncLocalVisual();
+            resetLocalRenderInterpolation();
 
             return;
         }
 
         /*
-         * =================================================
-         * REPLAY
-         * =================================================
-         *
-         * Replay tất cả input chưa được server ACK
-         * từ serverTick + 1 đến clientTick.
+         * Replay input chưa được server ACK.
          */
         for (long tick =
                      serverTick + 1;
              tick <= targetClientTick;
              tick++) {
 
-            /*
-             * Apply tất cả input có hiệu lực
-             * tại tick này.
-             */
             for (PendingInput pending
                     : pendingInputs) {
 
@@ -777,15 +746,57 @@ public class GameScene extends Pane {
                 }
             }
 
-            /*
-             * Sau input mới chạy đúng một
-             * simulation tick.
-             */
             controller.tick(
                     physicsPlatforms);
         }
 
-        syncLocalVisual();
+        /*
+         * Sau reconciliation/replay,
+         * không nội suy từ state cũ trước
+         * reconciliation sang state mới.
+         *
+         * Nếu không reset buffer, render có thể
+         * tạo ra một cú kéo ngược rất nhỏ.
+         */
+        resetLocalRenderInterpolation();
+    }
+
+    // =====================================================
+    // RESET LOCAL RENDER INTERPOLATION
+    // =====================================================
+
+    private void resetLocalRenderInterpolation() {
+
+        PlayerState state =
+                controller.getState();
+
+        previousLocalX =
+                state.getX();
+
+        previousLocalY =
+                state.getY();
+
+        currentLocalX =
+                state.getX();
+
+        currentLocalY =
+                state.getY();
+
+        localRenderInitialized =
+                true;
+
+        /*
+         * Render ngay authoritative/predicted
+         * state mới sau reconciliation.
+         */
+        player.setX(
+                state.getX());
+
+        player.setY(
+                state.getY());
+
+        player.setOnGround(
+                state.isOnGround());
     }
 
     // =====================================================
@@ -795,20 +806,6 @@ public class GameScene extends Pane {
     private void applyInputsForTick(
             long tick) {
 
-        /*
-         * Một tick có thể có nhiều input.
-         *
-         * Ví dụ:
-         *
-         * LEFT_PRESS
-         * RIGHT_PRESS
-         *
-         * nếu cả hai event xảy ra giữa
-         * hai simulation tick.
-         *
-         * Chúng phải được apply theo thứ tự
-         * chúng nằm trong pendingInputs.
-         */
         for (PendingInput pending
                 : pendingInputs) {
 
@@ -818,6 +815,46 @@ public class GameScene extends Pane {
                         pending.command);
             }
         }
+    }
+
+    // =====================================================
+    // SIMULATION STATE BUFFER
+    // =====================================================
+
+    private void beginLocalSimulationTick() {
+
+        PlayerState state =
+                controller.getState();
+
+        previousLocalX =
+                state.getX();
+
+        previousLocalY =
+                state.getY();
+
+        if (!localRenderInitialized) {
+
+            currentLocalX =
+                    state.getX();
+
+            currentLocalY =
+                    state.getY();
+
+            localRenderInitialized =
+                    true;
+        }
+    }
+
+    private void finishLocalSimulationTick() {
+
+        PlayerState state =
+                controller.getState();
+
+        currentLocalX =
+                state.getX();
+
+        currentLocalY =
+                state.getY();
     }
 
     // =====================================================
@@ -831,10 +868,8 @@ public class GameScene extends Pane {
                 snapshot.playerId;
 
         /*
-         * Defensive guard:
-         *
-         * local player tuyệt đối không được
-         * xuất hiện trong remotePlayers.
+         * Local player tuyệt đối không được
+         * đưa vào remotePlayers.
          */
         if (playerId.equals(
                 localPlayerId)) {
@@ -843,7 +878,8 @@ public class GameScene extends Pane {
         }
 
         Player remote =
-                remotePlayers.get(playerId);
+                remotePlayers.get(
+                        playerId);
 
         if (remote == null) {
 
@@ -891,9 +927,8 @@ public class GameScene extends Pane {
         } else {
 
             /*
-             * Snapshot cũ trở thành previous.
-             *
-             * Snapshot mới trở thành target.
+             * Snapshot trước -> previous
+             * Snapshot mới  -> target
              */
             remoteState.previousX =
                     remoteState.targetX;
@@ -914,9 +949,6 @@ public class GameScene extends Pane {
                     snapshot.onGround;
         }
 
-        /*
-         * Lưu authoritative state.
-         */
         remoteState.state.setX(
                 snapshot.x);
 
@@ -963,11 +995,6 @@ public class GameScene extends Pane {
         long now =
                 System.nanoTime();
 
-        /*
-         * 20 snapshots / second:
-         *
-         * 50 ms / snapshot.
-         */
         final double snapshotIntervalNanos =
                 GameConfig.TICK_NANOS
                         * GameConfig.SNAPSHOT_INTERVAL;
@@ -982,7 +1009,8 @@ public class GameScene extends Pane {
                     entry.getValue();
 
             RemoteState remoteState =
-                    remoteStates.get(playerId);
+                    remoteStates.get(
+                            playerId);
 
             if (remoteState == null
                     || !remoteState.initialized) {
@@ -1039,9 +1067,7 @@ public class GameScene extends Pane {
                         action);
 
         /*
-         * Input event xảy ra giữa hai logical tick.
-         *
-         * Nó có hiệu lực từ tick kế tiếp.
+         * Input có hiệu lực từ fixed tick kế tiếp.
          */
         long inputTick =
                 clientTick + 1;
@@ -1051,11 +1077,6 @@ public class GameScene extends Pane {
                         command,
                         inputTick));
 
-        /*
-         * Chỉ gửi network.
-         *
-         * Không mutate controller ở đây.
-         */
         network.sendInput(
                 "INPUT|"
                         + sequence
@@ -1082,10 +1103,7 @@ public class GameScene extends Pane {
     private int sendJumpRelease() {
 
         /*
-         * Không gửi jumpPower lên server.
-         *
-         * Server tự lấy jumpPower authoritative
-         * tại tick mà JUMP_RELEASE được xử lý.
+         * Server tự lấy jumpPower authoritative.
          */
         return queueInput(
                 "JUMP_RELEASE");
@@ -1107,30 +1125,16 @@ public class GameScene extends Pane {
 
         try {
 
-            int serverSequence =
-                    Integer.parseInt(
-                            parts[2]);
-
             /*
-             * PLAYER_STATE cũng có thể ACK input.
+             * PLAYER_STATE có thể chứa sequence,
+             * nhưng KHÔNG được tự cập nhật
+             * lastServerSequence ở đây.
              *
-             * Không reconcile ở đây.
-             *
-             * WORLD_STATE mới chứa đầy đủ
-             * authoritative state để reconciliation.
+             * WORLD_STATE mới là nguồn authoritative
+             * đầy đủ để reconciliation.
              */
-            if (serverSequence
-                    > lastServerSequence) {
-
-                lastServerSequence =
-                        serverSequence;
-
-                pendingInputs.removeIf(
-                        input ->
-                                input.command
-                                        .getSequence()
-                                        <= serverSequence);
-            }
+            Integer.parseInt(
+                    parts[2]);
 
         } catch (Exception e) {
 
@@ -1148,17 +1152,62 @@ public class GameScene extends Pane {
 
     private void syncLocalVisual() {
 
-        PlayerState state =
-                controller.getState();
+        if (!localRenderInitialized) {
+
+            PlayerState state =
+                    controller.getState();
+
+            player.setX(
+                    state.getX());
+
+            player.setY(
+                    state.getY());
+
+            player.setOnGround(
+                    state.isOnGround());
+
+            return;
+        }
+
+        /*
+         * Alpha biểu diễn phần thời gian đã đi
+         * vào simulation tick tiếp theo.
+         *
+         * Render giữa previous và current.
+         */
+        double alpha =
+                tickAccumulator
+                        / GameConfig.TICK_DT;
+
+        if (alpha < 0) {
+            alpha = 0;
+        }
+
+        if (alpha > 1) {
+            alpha = 1;
+        }
+
+        double renderX =
+                previousLocalX
+                        + (currentLocalX
+                                - previousLocalX)
+                                * alpha;
+
+        double renderY =
+                previousLocalY
+                        + (currentLocalY
+                                - previousLocalY)
+                                * alpha;
 
         player.setX(
-                state.getX());
+                renderX);
 
         player.setY(
-                state.getY());
+                renderY);
 
         player.setOnGround(
-                state.isOnGround());
+                controller.getState()
+                        .isOnGround());
     }
 
     // =====================================================
@@ -1217,9 +1266,9 @@ public class GameScene extends Pane {
 
     private void createMap() {
 
-        /*
-         * TẦNG 2
-         */
+        // =========================
+        // TẦNG 2
+        // =========================
 
         addPlatform(
                 100,
@@ -1245,9 +1294,9 @@ public class GameScene extends Pane {
                 200,
                 20);
 
-        /*
-         * TẦNG 1
-         */
+        // =========================
+        // TẦNG 1
+        // =========================
 
         addPlatform(
                 50,
@@ -1273,9 +1322,9 @@ public class GameScene extends Pane {
                 120,
                 20);
 
-        /*
-         * TẦNG 0
-         */
+        // =========================
+        // TẦNG 0
+        // =========================
 
         addPlatform(
                 100,
@@ -1301,9 +1350,9 @@ public class GameScene extends Pane {
                 180,
                 20);
 
-        /*
-         * WALL LEFT
-         */
+        // =========================
+        // WALL LEFT
+        // =========================
 
         addPlatform(
                 0,
@@ -1311,9 +1360,9 @@ public class GameScene extends Pane {
                 20,
                 MAP_HEIGHT);
 
-        /*
-         * WALL RIGHT
-         */
+        // =========================
+        // WALL RIGHT
+        // =========================
 
         addPlatform(
                 MAP_WIDTH - 20,
@@ -1321,9 +1370,9 @@ public class GameScene extends Pane {
                 20,
                 MAP_HEIGHT);
 
-        /*
-         * FLOOR
-         */
+        // =========================
+        // FLOOR
+        // =========================
 
         addPlatform(
                 0,
@@ -1406,9 +1455,9 @@ public class GameScene extends Pane {
 
         setOnKeyPressed(event -> {
 
-            /*
-             * LEFT
-             */
+            // =========================
+            // LEFT
+            // =========================
 
             if (event.getCode() == KeyCode.A
                     || event.getCode()
@@ -1418,20 +1467,14 @@ public class GameScene extends Pane {
 
                     leftPressed = true;
 
-                    /*
-                     * Không sửa controller ngay.
-                     *
-                     * Input sẽ được apply ở
-                     * fixed tick kế tiếp.
-                     */
                     sendInput(
                             "LEFT_PRESS");
                 }
             }
 
-            /*
-             * RIGHT
-             */
+            // =========================
+            // RIGHT
+            // =========================
 
             if (event.getCode() == KeyCode.D
                     || event.getCode()
@@ -1446,9 +1489,9 @@ public class GameScene extends Pane {
                 }
             }
 
-            /*
-             * JUMP
-             */
+            // =========================
+            // JUMP
+            // =========================
 
             if (event.getCode()
                     == KeyCode.SPACE) {
@@ -1465,9 +1508,9 @@ public class GameScene extends Pane {
 
         setOnKeyReleased(event -> {
 
-            /*
-             * LEFT
-             */
+            // =========================
+            // LEFT
+            // =========================
 
             if (event.getCode() == KeyCode.A
                     || event.getCode()
@@ -1482,9 +1525,9 @@ public class GameScene extends Pane {
                 }
             }
 
-            /*
-             * RIGHT
-             */
+            // =========================
+            // RIGHT
+            // =========================
 
             if (event.getCode() == KeyCode.D
                     || event.getCode()
@@ -1499,9 +1542,9 @@ public class GameScene extends Pane {
                 }
             }
 
-            /*
-             * JUMP RELEASE
-             */
+            // =========================
+            // JUMP RELEASE
+            // =========================
 
             if (event.getCode()
                     == KeyCode.SPACE) {
@@ -1510,14 +1553,6 @@ public class GameScene extends Pane {
 
                     spacePressed = false;
 
-                    /*
-                     * Không cần lấy jumpPower
-                     * và gửi lên server.
-                     *
-                     * Client prediction cũng sẽ
-                     * lấy jumpPower từ state tại
-                     * thời điểm input được apply.
-                     */
                     sendJumpRelease();
                 }
             }
@@ -1553,9 +1588,8 @@ public class GameScene extends Pane {
                         lastTime = now;
 
                         /*
-                         * Nếu window bị treo quá lâu,
-                         * không cho accumulator tăng
-                         * vô hạn.
+                         * Không cho accumulator tăng
+                         * quá lớn khi window bị treo.
                          */
                         if (frameDelta > 0.25) {
 
@@ -1567,11 +1601,10 @@ public class GameScene extends Pane {
 
                         int ticksThisFrame = 0;
 
-                        /*
-                         * =========================
-                         * FIXED 60 TPS
-                         * =========================
-                         */
+                        // =========================
+                        // FIXED 60 TPS
+                        // =========================
+
                         while (tickAccumulator
                                         >= GameConfig.TICK_DT
                                 && ticksThisFrame
@@ -1583,25 +1616,27 @@ public class GameScene extends Pane {
                             clientTick++;
 
                             /*
-                             * =========================
-                             * INPUT
-                             * =========================
-                             *
+                             * Lưu state trước simulation.
+                             */
+                            beginLocalSimulationTick();
+
+                            /*
                              * Apply input trước physics.
-                             *
-                             * Đây là điểm tương ứng với
-                             * processQueuedInputs() trên server.
                              */
                             applyInputsForTick(
                                     clientTick);
 
                             /*
-                             * =========================
-                             * SIMULATION
-                             * =========================
+                             * Chạy đúng một
+                             * simulation tick.
                              */
                             controller.tick(
                                     physicsPlatforms);
+
+                            /*
+                             * Lưu state sau simulation.
+                             */
+                            finishLocalSimulationTick();
 
                             tickAccumulator -=
                                     GameConfig.TICK_DT;
@@ -1611,8 +1646,8 @@ public class GameScene extends Pane {
 
                         /*
                          * Nếu render thread quá chậm,
-                         * bỏ accumulator dư để tránh
-                         * spiral of death.
+                         * bỏ phần dư để tránh spiral
+                         * of death.
                          */
                         if (ticksThisFrame
                                 >= MAX_TICKS_PER_FRAME
@@ -1623,37 +1658,27 @@ public class GameScene extends Pane {
                                     0;
                         }
 
-                        /*
-                         * =========================
-                         * LOCAL VISUAL
-                         * =========================
-                         *
-                         * Render độc lập với simulation.
-                         */
+                        // =========================
+                        // LOCAL RENDER
+                        // =========================
+
                         syncLocalVisual();
 
-                        /*
-                         * =========================
-                         * REMOTE INTERPOLATION
-                         * =========================
-                         *
-                         * Remote không chạy physics.
-                         */
+                        // =========================
+                        // REMOTE RENDER
+                        // =========================
+
                         updateRemotePlayers();
 
-                        /*
-                         * =========================
-                         * CAMERA
-                         * =========================
-                         */
+                        // =========================
+                        // CAMERA
+                        // =========================
 
                         updateCamera();
 
-                        /*
-                         * =========================
-                         * JUMP BAR
-                         * =========================
-                         */
+                        // =========================
+                        // JUMP BAR
+                        // =========================
 
                         updateJumpBar();
                     }
