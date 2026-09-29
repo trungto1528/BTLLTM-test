@@ -3,7 +3,12 @@ package com.test.core;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
+import java.util.Queue;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.Consumer;
+
+import javafx.application.Platform;
 
 public class GameWebSocketClient
         implements WebSocket.Listener {
@@ -15,15 +20,76 @@ public class GameWebSocketClient
 
     private GameScene gameScene;
 
-    public void setGameScene(GameScene gameScene) {
+    /*
+     * Nhận các message liên quan đến lobby.
+     *
+     * GameApp sẽ đăng ký listener này.
+     */
+    private Consumer<String> messageHandler;
+
+    /*
+     * Message gửi trước khi WebSocket kết nối xong
+     * sẽ được giữ lại ở đây.
+     *
+     * Ví dụ:
+     *
+     * connect()
+     * CREATE_ROOM
+     * ↓
+     * socket chưa open
+     * ↓
+     * pendingMessages
+     * ↓
+     * onOpen()
+     * ↓
+     * flush
+     */
+    private final Queue<String> pendingMessages =
+            new ConcurrentLinkedQueue<>();
+
+    /*
+     * Tránh gọi connect() nhiều lần.
+     */
+    private volatile boolean connecting;
+
+    // =====================================================
+    // SETTERS
+    // =====================================================
+
+    public void setGameScene(
+            GameScene gameScene) {
+
         this.gameScene = gameScene;
     }
 
-    // =========================
-    // CONNECT
-    // =========================
+    public void setMessageHandler(
+            Consumer<String> messageHandler) {
 
-    public void connect() {
+        this.messageHandler = messageHandler;
+    }
+
+    // =====================================================
+    // CONNECT
+    // =====================================================
+
+    public synchronized void connect() {
+
+        /*
+         * Đã connected hoặc đang connecting
+         * thì không tạo WebSocket thứ hai.
+         */
+        if (webSocket != null
+                && !webSocket.isOutputClosed()) {
+
+            return;
+        }
+
+        if (connecting) {
+
+            return;
+        }
+
+        connecting = true;
 
         HttpClient client =
                 HttpClient.newHttpClient();
@@ -34,51 +100,166 @@ public class GameWebSocketClient
                         this)
                 .thenAccept(ws -> {
 
-                    this.webSocket = ws;
-
+                    /*
+                     * onOpen() sẽ xử lý việc
+                     * gán webSocket và flush queue.
+                     */
                     System.out.println(
-                            "WebSocket connected");
+                            "WebSocket connection established");
 
                 })
                 .exceptionally(error -> {
 
+                    connecting = false;
+
                     System.err.println(
                             "WebSocket connection failed: "
+                                    + error.getMessage());
+
+                    notifyMessage(
+                            "CONNECTION_ERROR|"
                                     + error.getMessage());
 
                     return null;
                 });
     }
 
-    // =========================
+    // =====================================================
     // SEND
-    // =========================
+    // =====================================================
 
-    public void send(String message) {
+    public void send(
+            String message) {
 
-        WebSocket ws = webSocket;
+        if (message == null
+                || message.isBlank()) {
 
-        if (ws == null) {
-            System.out.println(
-                    "WebSocket not connected");
             return;
         }
 
-        if (!ws.isOutputClosed()) {
+        WebSocket ws =
+                webSocket;
 
-            ws.sendText(
-                    message,
-                    true);
+        /*
+         * Socket chưa sẵn sàng:
+         *
+         * KHÔNG DROP MESSAGE.
+         *
+         * Đưa vào queue.
+         */
+        if (ws == null
+                || ws.isOutputClosed()) {
+
+            pendingMessages.offer(
+                    message);
+
+            /*
+             * Nếu vì lý do nào đó socket chưa
+             * được connect thì tự khởi động.
+             */
+            connect();
+
+            return;
         }
+
+        sendNow(
+                ws,
+                message);
     }
 
-    public void sendInput(String input) {
+    private void sendNow(
+            WebSocket ws,
+            String message) {
+
+        if (ws == null
+                || ws.isOutputClosed()) {
+
+            pendingMessages.offer(
+                    message);
+
+            return;
+        }
+
+        ws.sendText(
+                message,
+                true)
+                .exceptionally(error -> {
+
+                    System.err.println(
+                            "WebSocket send failed: "
+                                    + error.getMessage());
+
+                    /*
+                     * Chỉ queue lại nếu socket đã
+                     * mất trước khi gửi.
+                     */
+                    if (webSocket == null
+                            || webSocket.isOutputClosed()) {
+
+                        pendingMessages.offer(
+                                message);
+                    }
+
+                    return null;
+                });
+    }
+
+    public void sendInput(
+            String input) {
+
         send(input);
     }
 
-    // =========================
+    // =====================================================
+    // FLUSH PENDING MESSAGES
+    // =====================================================
+
+    private void flushPendingMessages(
+            WebSocket ws) {
+
+        String message;
+
+        while ((message =
+                pendingMessages.poll()) != null) {
+
+            sendNow(
+                    ws,
+                    message);
+        }
+    }
+
+    // =====================================================
     // RECEIVE
-    // =========================
+    // =====================================================
+
+    @Override
+    public void onOpen(
+            WebSocket webSocket) {
+
+        this.webSocket =
+                webSocket;
+
+        this.connecting =
+                false;
+
+        System.out.println(
+                "WebSocket connected");
+
+        /*
+         * Quan trọng:
+         *
+         * Những message như CREATE_ROOM,
+         * JOIN_ROOM... được gửi trước khi socket
+         * open sẽ được gửi ở đây.
+         */
+        flushPendingMessages(
+                webSocket);
+
+        /*
+         * Cho WebSocket tiếp tục nhận message.
+         */
+        webSocket.request(1);
+    }
 
     @Override
     public CompletionStage<?> onText(
@@ -90,19 +271,30 @@ public class GameWebSocketClient
                 data.toString();
 
         System.out.println(
-                "[WS RECEIVE] " + message);
+                "[WS RECEIVE] "
+                        + message);
 
-        GameScene scene = gameScene;
+        /*
+         * =================================================
+         * GAMEPLAY
+         * =================================================
+         *
+         * Giữ nguyên đường đi hiện tại để không
+         * ảnh hưởng prediction/reconciliation.
+         */
+        GameScene scene =
+                gameScene;
 
         if (scene != null) {
 
-            if (message.startsWith("WELCOME|")) {
+            if (message.startsWith(
+                    "WELCOME|")) {
 
                 String playerId =
                         message.substring(
                                 "WELCOME|".length());
 
-                javafx.application.Platform.runLater(
+                Platform.runLater(
                         () -> scene.setLocalPlayerId(
                                 playerId));
 
@@ -120,15 +312,82 @@ public class GameWebSocketClient
             }
         }
 
+        /*
+         * =================================================
+         * LOBBY / APP
+         * =================================================
+         *
+         * GameApp nhận raw message và tự quyết định
+         * UI nào cần cập nhật.
+         */
+        if (isLobbyMessage(message)) {
+
+            notifyMessage(
+                    message);
+        }
+
+        webSocket.request(1);
+
         return WebSocket.Listener.super.onText(
                 webSocket,
                 data,
                 last);
     }
 
-    // =========================
+    private boolean isLobbyMessage(
+            String message) {
+
+        return message.startsWith(
+                    "ROOM_CREATED|")
+
+                || message.startsWith(
+                    "ROOM_JOINED|")
+
+                || message.startsWith(
+                    "ROOM_STATE|")
+
+                || message.startsWith(
+                    "ROOM_LIST|")
+
+                || message.startsWith(
+                    "ROOM_ERROR|")
+
+                || message.startsWith(
+                    "ROOM_LEFT|")
+
+                || message.startsWith(
+                    "GAME_STARTED|")
+
+                || message.startsWith(
+                    "CONNECTION_ERROR|");
+    }
+
+    // =====================================================
+    // MESSAGE HANDLER
+    // =====================================================
+
+    private void notifyMessage(
+            String message) {
+
+        Consumer<String> handler =
+                messageHandler;
+
+        if (handler == null) {
+
+            return;
+        }
+
+        /*
+         * Lobby JavaFX UI phải được cập nhật
+         * trên JavaFX Application Thread.
+         */
+        Platform.runLater(
+                () -> handler.accept(message));
+    }
+
+    // =====================================================
     // CLOSE
-    // =========================
+    // =====================================================
 
     @Override
     public CompletionStage<?> onClose(
@@ -140,7 +399,22 @@ public class GameWebSocketClient
                 "Disconnected: "
                         + reason);
 
-        this.webSocket = null;
+        /*
+         * Chỉ clear nếu đây thực sự là
+         * socket hiện tại.
+         */
+        if (this.webSocket == webSocket) {
+
+            this.webSocket = null;
+        }
+
+        connecting = false;
+
+        notifyMessage(
+                "CONNECTION_CLOSED|"
+                        + statusCode
+                        + "|"
+                        + reason);
 
         return WebSocket.Listener.super.onClose(
                 webSocket,
@@ -148,9 +422,9 @@ public class GameWebSocketClient
                 reason);
     }
 
-    // =========================
+    // =====================================================
     // ERROR
-    // =========================
+    // =====================================================
 
     @Override
     public void onError(
@@ -159,6 +433,10 @@ public class GameWebSocketClient
 
         System.err.println(
                 "WebSocket error: "
+                        + error.getMessage());
+
+        notifyMessage(
+                "CONNECTION_ERROR|"
                         + error.getMessage());
     }
 }
