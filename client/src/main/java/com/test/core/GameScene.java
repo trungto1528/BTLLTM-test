@@ -1472,7 +1472,7 @@ public class GameScene extends Pane {
     // FIXED GAME LOOP
     // =====================================================
 
-    protected void startLoop() {
+    public void startLoop() {
 
         AnimationTimer timer =
                 new AnimationTimer() {

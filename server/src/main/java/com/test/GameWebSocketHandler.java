@@ -358,6 +358,14 @@ public class GameWebSocketHandler
                     session,
                     "ROOM_LIST|EMPTY");
 
+            /*
+             * Báo cho client rằng danh sách
+             * đã được gửi xong.
+             */
+            send(
+                    session,
+                    "ROOM_LIST_END");
+
             return;
         }
 
@@ -367,9 +375,6 @@ public class GameWebSocketHandler
          * ROOM_LIST|ABCDE|1|4|OPEN
          *
          * ROOM_LIST|XYZ12|3|4|OPEN
-         *
-         * Cách này đơn giản hơn việc nhét
-         * toàn bộ danh sách vào một message.
          */
         for (Room room : rooms) {
 
@@ -383,6 +388,14 @@ public class GameWebSocketHandler
                             + room.getMaxPlayers()
                             + "|OPEN");
         }
+
+        /*
+         * Báo cho client rằng toàn bộ
+         * danh sách room đã được gửi.
+         */
+        send(
+                session,
+                "ROOM_LIST_END");
     }
 
     // =====================================================
@@ -514,8 +527,6 @@ public class GameWebSocketHandler
                         + room.getRoomId());
 
         /*
-         * Quan trọng:
-         *
          * Chỉ player trong room này nhận
          * GAME_STARTED.
          */

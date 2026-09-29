@@ -1,12 +1,15 @@
 package com.test;
 
+import com.test.core.GameScene;
 import com.test.core.GameWebSocketClient;
 import com.test.ui.CreateRoomView;
+import com.test.ui.FindRoomView;
 import com.test.ui.JoinRoomView;
 import com.test.ui.LobbyView;
 import com.test.ui.MainMenuView;
 
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 
@@ -19,7 +22,14 @@ public class GameApp extends Application {
     private MainMenuView mainMenu;
     private CreateRoomView createRoom;
     private JoinRoomView joinRoom;
+    private FindRoomView findRoom;
     private LobbyView lobby;
+
+    /*
+     * GameScene chỉ được tạo khi server gửi
+     * GAME_STARTED.
+     */
+    private GameScene gameScene;
 
     /*
      * Player ID do server cấp.
@@ -60,15 +70,18 @@ public class GameApp extends Application {
                 new GameWebSocketClient();
 
         /*
-         * Tất cả message lobby sẽ đi vào đây.
+         * Tất cả message lobby / lifecycle
+         * sẽ đi vào đây.
          */
         network.setMessageHandler(
                 this::handleServerMessage);
 
         /*
-         * Connect một lần duy nhất khi application start.
+         * Connect một lần duy nhất khi
+         * application start.
          *
-         * Không connect lại mỗi khi chuyển scene.
+         * Không connect lại mỗi khi
+         * chuyển scene.
          */
         network.connect();
 
@@ -84,6 +97,9 @@ public class GameApp extends Application {
 
         joinRoom =
                 new JoinRoomView(this);
+
+        findRoom =
+                new FindRoomView(this);
 
         lobby =
                 new LobbyView(this);
@@ -130,6 +146,8 @@ public class GameApp extends Application {
         stage.setScene(
                 new Scene(mainMenu)
         );
+
+        mainMenu.requestFocus();
     }
 
     // =====================================================
@@ -138,15 +156,13 @@ public class GameApp extends Application {
 
     public void showCreateRoom() {
 
+        createRoom.reset();
+
         stage.setScene(
                 new Scene(createRoom)
         );
 
-        /*
-         * Không CREATE_ROOM ở đây.
-         *
-         * View sẽ gọi createRoom()
-         */
+        createRoom.requestFocus();
     }
 
     // =====================================================
@@ -155,9 +171,28 @@ public class GameApp extends Application {
 
     public void showJoinRoom() {
 
+        joinRoom.reset();
+
         stage.setScene(
                 new Scene(joinRoom)
         );
+
+        joinRoom.requestFocus();
+    }
+
+    // =====================================================
+    // FIND ROOM
+    // =====================================================
+
+    public void showFindRoom() {
+
+        stage.setScene(
+                new Scene(findRoom)
+        );
+
+        findRoom.onShow();
+
+        findRoom.requestFocus();
     }
 
     // =====================================================
@@ -183,6 +218,18 @@ public class GameApp extends Application {
         stage.setScene(
                 new Scene(lobby)
         );
+
+        lobby.requestFocus();
+    }
+
+    // =====================================================
+    // FIND ROOMS
+    // =====================================================
+
+    public void findRooms() {
+
+        network.send(
+                "FIND_ROOMS");
     }
 
     // =====================================================
@@ -239,6 +286,12 @@ public class GameApp extends Application {
          */
         network.send(
                 "START_GAME");
+
+        /*
+         * UI có thể hiển thị trạng thái
+         * đang bắt đầu game.
+         */
+        lobby.setStartingStatus();
     }
 
     // =====================================================
@@ -250,8 +303,11 @@ public class GameApp extends Application {
         network.send(
                 "LEAVE_ROOM");
 
-        currentRoomId = null;
-        currentHost = false;
+        currentRoomId =
+                null;
+
+        currentHost =
+                false;
 
         showMainMenu();
     }
@@ -321,6 +377,34 @@ public class GameApp extends Application {
 
             handleRoomState(
                     message);
+
+            return;
+        }
+
+        // =================================================
+        // ROOM LIST
+        // =================================================
+
+        if (message.startsWith(
+                "ROOM_LIST|")) {
+
+            handleRoomList(
+                    message);
+
+            return;
+        }
+
+        // =================================================
+        // ROOM LIST END
+        // =================================================
+
+        if ("ROOM_LIST_END".equals(message)) {
+
+            /*
+             * Server đã gửi toàn bộ danh sách room.
+             */
+            Platform.runLater(
+                    () -> findRoom.finishLoading());
 
             return;
         }
@@ -512,6 +596,16 @@ public class GameApp extends Application {
             return;
         }
 
+        /*
+         * Nếu đang ở một room khác thì
+         * không nhận ROOM_STATE đó.
+         */
+        if (currentRoomId != null
+                && !currentRoomId.equals(roomId)) {
+
+            return;
+        }
+
         currentRoomId =
                 roomId;
 
@@ -524,22 +618,132 @@ public class GameApp extends Application {
          */
         if (!isLobbyShowing()) {
 
-            showLobby(
-                    roomId,
-                    currentHost);
+            final String finalRoomId =
+                    roomId;
+
+            final int finalPlayerCount =
+                    playerCount;
+
+            final int finalMaxPlayers =
+                    maxPlayers;
+
+            final boolean finalHost =
+                    currentHost;
+
+            Platform.runLater(
+                    () -> {
+
+                        showLobby(
+                                finalRoomId,
+                                finalHost);
+
+                        lobby.setPlayers(
+                                finalPlayerCount,
+                                finalMaxPlayers);
+
+                        lobby.setHost(
+                                finalHost);
+                    });
 
         } else {
 
-            lobby.setRoomId(
-                    roomId);
+            final int finalPlayerCount =
+                    playerCount;
 
-            lobby.setPlayers(
-                    playerCount,
-                    maxPlayers);
+            final int finalMaxPlayers =
+                    maxPlayers;
 
-            lobby.setHost(
-                    currentHost);
+            final boolean finalHost =
+                    currentHost;
+
+            Platform.runLater(
+                    () -> {
+
+                        lobby.setRoomId(
+                                roomId);
+
+                        lobby.setPlayers(
+                                finalPlayerCount,
+                                finalMaxPlayers);
+
+                        lobby.setHost(
+                                finalHost);
+                    });
         }
+    }
+
+    // =====================================================
+    // ROOM LIST
+    // =====================================================
+
+    private void handleRoomList(
+            String message) {
+
+        /*
+         * ROOM_LIST|EMPTY
+         */
+        if ("ROOM_LIST|EMPTY".equals(message)) {
+
+            Platform.runLater(
+                    () -> findRoom.showEmpty());
+
+            return;
+        }
+
+        /*
+         * Protocol:
+         *
+         * ROOM_LIST|roomId|currentPlayers|maxPlayers|OPEN
+         */
+        String[] parts =
+                message.split("\\|");
+
+        if (parts.length < 5) {
+
+            System.err.println(
+                    "Invalid ROOM_LIST: "
+                            + message);
+
+            return;
+        }
+
+        String roomId =
+                parts[1];
+
+        int currentPlayers;
+
+        int maxPlayers;
+
+        try {
+
+            currentPlayers =
+                    Integer.parseInt(
+                            parts[2]);
+
+            maxPlayers =
+                    Integer.parseInt(
+                            parts[3]);
+
+        } catch (NumberFormatException e) {
+
+            System.err.println(
+                    "Invalid ROOM_LIST numbers: "
+                            + message);
+
+            return;
+        }
+
+        final int finalCurrentPlayers =
+                currentPlayers;
+
+        final int finalMaxPlayers =
+                maxPlayers;
+
+        Platform.runLater(
+                () -> findRoom.addRoom(
+                        roomId,
+                        finalCurrentPlayers,
+                        finalMaxPlayers));
     }
 
     // =====================================================
@@ -565,12 +769,32 @@ public class GameApp extends Application {
                 "Room error: "
                         + error);
 
-        /*
-         * Tạm thời hiển thị ra console.
-         *
-         * Sau khi Lobby/UI hoàn thiện,
-         * chuyển thành label/dialog.
-         */
+        Platform.runLater(
+                () -> {
+
+                    /*
+                     * Hiển thị lỗi ở màn Join Room.
+                     */
+                    joinRoom.setError(
+                            error);
+
+                    /*
+                     * Hiển thị lỗi ở Lobby nếu
+                     * người chơi đang ở Lobby.
+                     */
+                    if (isLobbyShowing()) {
+
+                        lobby.setError(
+                                error);
+                    }
+
+                    /*
+                     * Find Room cũng có thể gặp
+                     * lỗi khi refresh.
+                     */
+                    findRoom.setError(
+                            error);
+                });
     }
 
     // =====================================================
@@ -586,7 +810,8 @@ public class GameApp extends Application {
         currentHost =
                 false;
 
-        showMainMenu();
+        Platform.runLater(
+                this::showMainMenu);
     }
 
     // =====================================================
@@ -607,7 +832,8 @@ public class GameApp extends Application {
                         "GAME_STARTED|".length());
 
         /*
-         * Chỉ chuyển game nếu đúng room hiện tại.
+         * Chỉ chuyển game nếu đúng room
+         * hiện tại.
          */
         if (currentRoomId == null
                 || !currentRoomId.equals(roomId)) {
@@ -620,14 +846,11 @@ public class GameApp extends Application {
                         + roomId);
 
         /*
-         * QUAN TRỌNG:
-         *
-         * Không thay đổi physics/gameplay ở đây.
-         *
-         * GameScene hiện tại sẽ được
-         * khởi tạo ở bước lifecycle tiếp theo.
+         * GameScene phải được tạo trên
+         * JavaFX Application Thread.
          */
-        openGameScene();
+        Platform.runLater(
+                this::openGameScene);
     }
 
     // =====================================================
@@ -637,14 +860,48 @@ public class GameApp extends Application {
     private void openGameScene() {
 
         /*
-         * Bước này cần khớp với constructor/lifecycle
-         * hiện tại của GameScene.
-         *
-         * Vì gameplay của repo đang ổn định,
-         * chưa tự ý đoán constructor ở đây.
+         * Tránh tạo GameScene nhiều lần nếu
+         * server gửi GAME_STARTED nhiều hơn một lần.
          */
-        System.out.println(
-                "Opening GameScene...");
+        if (gameScene != null) {
+
+            return;
+        }
+
+        /*
+         * Constructor hiện tại của GameScene:
+         *
+         * GameScene(GameWebSocketClient network)
+         */
+        gameScene =
+                new GameScene(
+                        network);
+
+        /*
+         * GameWebSocketClient cần biết
+         * GameScene hiện tại để chuyển
+         * WORLD_STATE / PLAYER_STATE vào game.
+         */
+        network.setGameScene(
+                gameScene);
+
+        /*
+         * Start game loop hiện tại.
+         *
+         * KHÔNG thay đổi gameplay.
+         */
+        gameScene.startLoop();
+
+        /*
+         * Chuyển sang GameScene.
+         */
+        stage.setScene(
+                new Scene(gameScene));
+
+        /*
+         * Nhận keyboard input.
+         */
+        gameScene.requestFocus();
     }
 
     // =====================================================
