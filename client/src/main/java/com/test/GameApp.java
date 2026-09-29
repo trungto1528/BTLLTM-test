@@ -18,8 +18,11 @@ public class GameApp extends Application {
     private Stage stage;
 
     /*
-     * Chỉ sử dụng MỘT Scene duy nhất
-     * cho toàn bộ application.
+     * Chỉ sử dụng MỘT Scene duy nhất.
+     *
+     * Các màn hình sẽ được thay bằng:
+     *
+     * scene.setRoot(...)
      */
     private Scene scene;
 
@@ -111,22 +114,9 @@ public class GameApp extends Application {
                 new LobbyView(this);
 
         // =================================================
-        // SCENE
+        // SINGLE SCENE
         // =================================================
 
-        /*
-         * Chỉ tạo Scene MỘT LẦN.
-         *
-         * Sau này chuyển màn hình bằng:
-         *
-         * scene.setRoot(view);
-         *
-         * Không dùng:
-         *
-         * new Scene(view)
-         *
-         * nữa.
-         */
         scene =
                 new Scene(mainMenu);
 
@@ -167,13 +157,11 @@ public class GameApp extends Application {
 
     public void showMainMenu() {
 
-        /*
-         * Scene đã tồn tại.
-         *
-         * Chỉ thay root.
-         */
-        scene.setRoot(
-                mainMenu);
+        if (scene == null) {
+            return;
+        }
+
+        scene.setRoot(mainMenu);
 
         mainMenu.requestFocus();
     }
@@ -186,8 +174,7 @@ public class GameApp extends Application {
 
         createRoom.reset();
 
-        scene.setRoot(
-                createRoom);
+        scene.setRoot(createRoom);
 
         createRoom.requestFocus();
     }
@@ -200,8 +187,7 @@ public class GameApp extends Application {
 
         joinRoom.reset();
 
-        scene.setRoot(
-                joinRoom);
+        scene.setRoot(joinRoom);
 
         joinRoom.requestFocus();
     }
@@ -212,13 +198,8 @@ public class GameApp extends Application {
 
     public void showFindRoom() {
 
-        scene.setRoot(
-                findRoom);
+        scene.setRoot(findRoom);
 
-        /*
-         * Bắt đầu tìm room sau khi View
-         * đã trở thành root.
-         */
         findRoom.onShow();
 
         findRoom.requestFocus();
@@ -244,8 +225,7 @@ public class GameApp extends Application {
         lobby.setHost(
                 host);
 
-        scene.setRoot(
-                lobby);
+        scene.setRoot(lobby);
 
         lobby.requestFocus();
     }
@@ -428,9 +408,6 @@ public class GameApp extends Application {
 
         if ("ROOM_LIST_END".equals(message)) {
 
-            /*
-             * Server đã gửi toàn bộ danh sách room.
-             */
             Platform.runLater(
                     () -> findRoom.finishLoading());
 
@@ -526,11 +503,6 @@ public class GameApp extends Application {
         currentHost =
                 true;
 
-        /*
-         * Server đã tạo room thành công.
-         *
-         * Chuyển sang Lobby.
-         */
         showLobby(
                 roomId,
                 true);
@@ -558,9 +530,6 @@ public class GameApp extends Application {
         currentHost =
                 false;
 
-        /*
-         * Tạm thời chuyển vào lobby.
-         */
         showLobby(
                 roomId,
                 false);
@@ -577,10 +546,6 @@ public class GameApp extends Application {
          * Protocol:
          *
          * ROOM_STATE|roomId|count|max|hostId
-         *
-         * Ví dụ:
-         *
-         * ROOM_STATE|ABCDE|2|4|P001
          */
 
         String[] parts =
@@ -781,14 +746,6 @@ public class GameApp extends Application {
     private void handleRoomError(
             String message) {
 
-        /*
-         * Ví dụ:
-         *
-         * ROOM_ERROR|ROOM_NOT_FOUND
-         * ROOM_ERROR|ROOM_FULL
-         * ROOM_ERROR|NOT_HOST
-         */
-
         String error =
                 message.substring(
                         "ROOM_ERROR|".length());
@@ -800,26 +757,15 @@ public class GameApp extends Application {
         Platform.runLater(
                 () -> {
 
-                    /*
-                     * Hiển thị lỗi ở màn Join Room.
-                     */
                     joinRoom.setError(
                             error);
 
-                    /*
-                     * Hiển thị lỗi ở Lobby nếu
-                     * người chơi đang ở Lobby.
-                     */
                     if (isLobbyShowing()) {
 
                         lobby.setError(
                                 error);
                     }
 
-                    /*
-                     * Find Room cũng có thể gặp
-                     * lỗi khi refresh.
-                     */
                     findRoom.setError(
                             error);
                 });
@@ -873,10 +819,6 @@ public class GameApp extends Application {
                 "Game started: "
                         + roomId);
 
-        /*
-         * GameScene phải được tạo trên
-         * JavaFX Application Thread.
-         */
         Platform.runLater(
                 this::openGameScene);
     }
@@ -906,6 +848,36 @@ public class GameApp extends Application {
                         network);
 
         /*
+         * =================================================
+         * QUAN TRỌNG
+         * =================================================
+         *
+         * GameApp đã nhận WELCOME trước đó:
+         *
+         * WELCOME|playerId
+         *
+         * Nhưng GameScene được tạo SAU KHI
+         * GAME_STARTED.
+         *
+         * Vì vậy phải truyền playerId vào GameScene
+         * tại đây.
+         *
+         * Nếu thiếu dòng này:
+         *
+         * localPlayerId == null
+         *
+         * => player của chính mình trong WORLD_STATE
+         * bị coi là REMOTE PLAYER
+         *
+         * => xuất hiện player ảo / phân thân.
+         */
+        if (localPlayerId != null) {
+
+            gameScene.setLocalPlayerId(
+                    localPlayerId);
+        }
+
+        /*
          * GameWebSocketClient cần biết
          * GameScene hiện tại để chuyển
          * WORLD_STATE / PLAYER_STATE vào game.
@@ -921,8 +893,7 @@ public class GameApp extends Application {
         gameScene.startLoop();
 
         /*
-         * Chuyển sang GameScene bằng
-         * Scene hiện tại.
+         * Dùng Scene hiện tại, không tạo Scene mới.
          */
         scene.setRoot(
                 gameScene);
