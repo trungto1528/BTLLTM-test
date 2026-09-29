@@ -14,53 +14,100 @@ public class MainMenuView extends VBox {
     private final GameApp app;
 
     public MainMenuView(GameApp app) {
+
         this.app = app;
 
         setSpacing(20);
         setAlignment(Pos.CENTER);
         setPrefSize(1000, 700);
-        setStyle("-fx-background-color: #20242b;");
 
-        Label title = new Label("JUMP GAME");
-        title.setFont(Font.font(48));
-        title.setTextFill(Color.WHITE);
+        setStyle(
+                "-fx-background-color: #20242b;"
+        );
 
-        Label subtitle = new Label("MULTIPLAYER");
-        subtitle.setFont(Font.font(20));
-        subtitle.setTextFill(Color.LIGHTGRAY);
+        // =================================================
+        // TITLE
+        // =================================================
 
-        Button createButton = createButton("CREATE ROOM");
+        Label title =
+                new Label("JUMP GAME");
 
-        Button joinButton = createButton("JOIN ROOM");
+        title.setFont(
+                Font.font(48));
 
-        Button exitButton = createButton("EXIT");
+        title.setTextFill(
+                Color.WHITE);
 
-        createButton.setOnAction(e ->
-                app.showCreateRoom());
+        // =================================================
+        // SUBTITLE
+        // =================================================
 
-        joinButton.setOnAction(e ->
-                app.showJoinRoom());
+        Label subtitle =
+                new Label("MULTIPLAYER");
 
-        exitButton.setOnAction(e ->
-                app.getStage().close());
+        subtitle.setFont(
+                Font.font(20));
+
+        subtitle.setTextFill(
+                Color.LIGHTGRAY);
+
+        // =================================================
+        // BUTTONS
+        // =================================================
+
+        Button createButton =
+                createButton("CREATE ROOM");
+
+        Button joinButton =
+                createButton("JOIN ROOM");
+
+        Button findButton =
+                createButton("FIND ROOM");
+
+        Button exitButton =
+                createButton("EXIT");
+
+        // =================================================
+        // ACTIONS
+        // =================================================
+
+        createButton.setOnAction(
+                e -> app.showCreateRoom());
+
+        joinButton.setOnAction(
+                e -> app.showJoinRoom());
+
+        findButton.setOnAction(
+                e -> app.showFindRoom());
+
+        exitButton.setOnAction(
+                e -> app.getStage().close());
+
+        // =================================================
+        // ADD
+        // =================================================
 
         getChildren().addAll(
                 title,
                 subtitle,
                 createButton,
                 joinButton,
+                findButton,
                 exitButton
         );
     }
 
-    private Button createButton(String text) {
+    private Button createButton(
+            String text) {
 
-        Button button = new Button(text);
+        Button button =
+                new Button(text);
 
         button.setPrefWidth(280);
         button.setPrefHeight(55);
 
-        button.setFont(Font.font(18));
+        button.setFont(
+                Font.font(18));
 
         return button;
     }
