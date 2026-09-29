@@ -13,8 +13,9 @@ public class CreateRoomView extends VBox {
 
     private final GameApp app;
 
-    private final Label roomIdLabel;
     private final Label statusLabel;
+    private final Button createButton;
+    private final Button backButton;
 
     public CreateRoomView(GameApp app) {
 
@@ -23,60 +24,152 @@ public class CreateRoomView extends VBox {
         setSpacing(20);
         setAlignment(Pos.CENTER);
         setPrefSize(1000, 700);
-        setStyle("-fx-background-color: #20242b;");
 
-        Label title = new Label("CREATE ROOM");
+        setStyle(
+                "-fx-background-color: #20242b;"
+        );
 
-        title.setFont(Font.font(36));
-        title.setTextFill(Color.WHITE);
+        // =================================================
+        // TITLE
+        // =================================================
 
-        Label roomTitle = new Label("ROOM ID");
+        Label title =
+                new Label("CREATE ROOM");
 
-        roomTitle.setFont(Font.font(18));
-        roomTitle.setTextFill(Color.LIGHTGRAY);
+        title.setFont(
+                Font.font(36));
 
-        roomIdLabel = new Label("------");
+        title.setTextFill(
+                Color.WHITE);
 
-        roomIdLabel.setFont(Font.font(42));
-        roomIdLabel.setTextFill(Color.WHITE);
+        // =================================================
+        // DESCRIPTION
+        // =================================================
 
-        statusLabel = new Label("Creating room...");
+        Label description =
+                new Label(
+                        "Create a new multiplayer room"
+                );
 
-        statusLabel.setTextFill(Color.LIGHTGRAY);
+        description.setFont(
+                Font.font(18));
 
-        Button startButton = new Button("START");
+        description.setTextFill(
+                Color.LIGHTGRAY);
 
-        startButton.setPrefWidth(250);
-        startButton.setPrefHeight(55);
+        // =================================================
+        // STATUS
+        // =================================================
 
-        startButton.setFont(Font.font(18));
+        statusLabel =
+                new Label(
+                        "Ready to create room."
+                );
 
-        startButton.setDisable(true);
+        statusLabel.setFont(
+                Font.font(16));
 
-        startButton.setOnAction(e ->
-                app.startGame());
+        statusLabel.setTextFill(
+                Color.LIGHTGRAY);
 
-        Button backButton = new Button("BACK");
+        // =================================================
+        // CREATE
+        // =================================================
+
+        createButton =
+                new Button("CREATE");
+
+        createButton.setPrefWidth(250);
+        createButton.setPrefHeight(55);
+
+        createButton.setFont(
+                Font.font(18));
+
+        createButton.setOnAction(
+                e -> {
+
+                    setCreating();
+
+                    app.createRoom();
+                });
+
+        // =================================================
+        // BACK
+        // =================================================
+
+        backButton =
+                new Button("BACK");
 
         backButton.setPrefWidth(250);
         backButton.setPrefHeight(45);
 
-        backButton.setOnAction(e ->
-                app.showMainMenu());
+        backButton.setFont(
+                Font.font(16));
+
+        backButton.setOnAction(
+                e -> app.showMainMenu());
+
+        // =================================================
+        // ADD
+        // =================================================
 
         getChildren().addAll(
                 title,
-                roomTitle,
-                roomIdLabel,
+                description,
                 statusLabel,
-                startButton,
+                createButton,
                 backButton
         );
     }
 
-    public void setRoomId(String roomId) {
+    // =====================================================
+    // CREATING
+    // =====================================================
 
-        roomIdLabel.setText(roomId);
-        statusLabel.setText("Waiting for players...");
+    private void setCreating() {
+
+        statusLabel.setText(
+                "Creating room..."
+        );
+
+        createButton.setDisable(
+                true);
+
+        backButton.setDisable(
+                true);
+    }
+
+    // =====================================================
+    // RESET
+    // =====================================================
+
+    public void reset() {
+
+        statusLabel.setText(
+                "Ready to create room."
+        );
+
+        createButton.setDisable(
+                false);
+
+        backButton.setDisable(
+                false);
+    }
+
+    // =====================================================
+    // ERROR
+    // =====================================================
+
+    public void setError(
+            String message) {
+
+        statusLabel.setText(
+                message);
+
+        createButton.setDisable(
+                false);
+
+        backButton.setDisable(
+                false);
     }
 }

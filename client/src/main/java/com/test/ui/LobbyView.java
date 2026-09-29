@@ -18,6 +18,7 @@ public class LobbyView extends VBox {
     private final Label statusLabel;
 
     private final Button startButton;
+    private final Button leaveButton;
 
     public LobbyView(GameApp app) {
 
@@ -26,48 +27,112 @@ public class LobbyView extends VBox {
         setSpacing(18);
         setAlignment(Pos.CENTER);
         setPrefSize(1000, 700);
-        setStyle("-fx-background-color: #20242b;");
 
-        Label title = new Label("GAME LOBBY");
+        setStyle(
+                "-fx-background-color: #20242b;"
+        );
 
-        title.setFont(Font.font(36));
-        title.setTextFill(Color.WHITE);
+        // =================================================
+        // TITLE
+        // =================================================
 
-        roomIdLabel = new Label("ROOM: ------");
+        Label title =
+                new Label("GAME LOBBY");
 
-        roomIdLabel.setFont(Font.font(24));
-        roomIdLabel.setTextFill(Color.WHITE);
+        title.setFont(
+                Font.font(36));
 
-        playersLabel = new Label(
-                "PLAYERS (0/4)\n");
+        title.setTextFill(
+                Color.WHITE);
 
-        playersLabel.setFont(Font.font(20));
-        playersLabel.setTextFill(Color.LIGHTGRAY);
+        // =================================================
+        // ROOM ID
+        // =================================================
 
-        statusLabel = new Label(
-                "Waiting for players...");
+        roomIdLabel =
+                new Label("ROOM: ------");
 
-        statusLabel.setTextFill(Color.LIGHTGRAY);
+        roomIdLabel.setFont(
+                Font.font(24));
 
-        startButton = new Button("START");
+        roomIdLabel.setTextFill(
+                Color.WHITE);
+
+        // =================================================
+        // PLAYERS
+        // =================================================
+
+        playersLabel =
+                new Label("PLAYERS (0/4)");
+
+        playersLabel.setFont(
+                Font.font(20));
+
+        playersLabel.setTextFill(
+                Color.LIGHTGRAY);
+
+        // =================================================
+        // STATUS
+        // =================================================
+
+        statusLabel =
+                new Label(
+                        "Waiting for players..."
+                );
+
+        statusLabel.setFont(
+                Font.font(16));
+
+        statusLabel.setTextFill(
+                Color.LIGHTGRAY);
+
+        // =================================================
+        // START
+        // =================================================
+
+        startButton =
+                new Button("START");
 
         startButton.setPrefWidth(250);
         startButton.setPrefHeight(55);
 
-        startButton.setFont(Font.font(18));
+        startButton.setFont(
+                Font.font(18));
 
+        /*
+         * Chỉ host mới được START.
+         */
         startButton.setDisable(true);
 
-        startButton.setOnAction(e ->
-                app.startGame());
+        startButton.setOnAction(
+                e -> app.startGame());
 
-        Button leaveButton = new Button("LEAVE");
+        // =================================================
+        // LEAVE
+        // =================================================
+
+        leaveButton =
+                new Button("LEAVE");
 
         leaveButton.setPrefWidth(250);
         leaveButton.setPrefHeight(45);
 
-        leaveButton.setOnAction(e ->
-                app.showMainMenu());
+        leaveButton.setFont(
+                Font.font(16));
+
+        /*
+         * Không chỉ chuyển UI.
+         *
+         * Phải báo server:
+         *
+         * LEAVE_ROOM
+         */
+        leaveButton.setOnAction(
+                e -> app.leaveRoom());
+
+        // =================================================
+        // ADD
+        // =================================================
 
         getChildren().addAll(
                 title,
@@ -79,27 +144,51 @@ public class LobbyView extends VBox {
         );
     }
 
-    public void setRoomId(String roomId) {
+    // =====================================================
+    // ROOM ID
+    // =====================================================
+
+    public void setRoomId(
+            String roomId) {
+
+        if (roomId == null
+                || roomId.isBlank()) {
+
+            roomIdLabel.setText(
+                    "ROOM: ------");
+
+            return;
+        }
 
         roomIdLabel.setText(
                 "ROOM: " + roomId);
     }
+
+    // =====================================================
+    // PLAYERS
+    // =====================================================
 
     public void setPlayers(
             int current,
             int max) {
 
         playersLabel.setText(
-                "PLAYERS (" +
-                current +
-                "/" +
-                max +
-                ")");
+                "PLAYERS ("
+                        + current
+                        + "/"
+                        + max
+                        + ")");
     }
 
-    public void setHost(boolean host) {
+    // =====================================================
+    // HOST
+    // =====================================================
 
-        startButton.setDisable(!host);
+    public void setHost(
+            boolean host) {
+
+        startButton.setDisable(
+                !host);
 
         if (host) {
 
@@ -111,5 +200,58 @@ public class LobbyView extends VBox {
             statusLabel.setText(
                     "Waiting for host...");
         }
+    }
+
+    // =====================================================
+    // WAITING
+    // =====================================================
+
+    public void setWaitingStatus() {
+
+        statusLabel.setText(
+                "Waiting for players...");
+    }
+
+    // =====================================================
+    // STARTING
+    // =====================================================
+
+    public void setStartingStatus() {
+
+        statusLabel.setText(
+                "Starting game...");
+
+        startButton.setDisable(true);
+        leaveButton.setDisable(true);
+    }
+
+    // =====================================================
+    // ERROR
+    // =====================================================
+
+    public void setError(
+            String message) {
+
+        statusLabel.setText(
+                message);
+    }
+
+    // =====================================================
+    // RESET
+    // =====================================================
+
+    public void reset() {
+
+        roomIdLabel.setText(
+                "ROOM: ------");
+
+        playersLabel.setText(
+                "PLAYERS (0/4)");
+
+        statusLabel.setText(
+                "Waiting for players...");
+
+        startButton.setDisable(true);
+        leaveButton.setDisable(false);
     }
 }

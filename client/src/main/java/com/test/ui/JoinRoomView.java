@@ -17,6 +17,9 @@ public class JoinRoomView extends VBox {
     private final TextField roomIdField;
     private final Label statusLabel;
 
+    private final Button joinButton;
+    private final Button backButton;
+
     public JoinRoomView(GameApp app) {
 
         this.app = app;
@@ -24,50 +27,123 @@ public class JoinRoomView extends VBox {
         setSpacing(20);
         setAlignment(Pos.CENTER);
         setPrefSize(1000, 700);
-        setStyle("-fx-background-color: #20242b;");
 
-        Label title = new Label("JOIN ROOM");
+        setStyle(
+                "-fx-background-color: #20242b;"
+        );
 
-        title.setFont(Font.font(36));
-        title.setTextFill(Color.WHITE);
+        // =================================================
+        // TITLE
+        // =================================================
 
-        Label roomTitle = new Label("ROOM ID");
+        Label title =
+                new Label("JOIN ROOM");
 
-        roomTitle.setFont(Font.font(18));
-        roomTitle.setTextFill(Color.LIGHTGRAY);
+        title.setFont(
+                Font.font(36));
 
-        roomIdField = new TextField();
+        title.setTextFill(
+                Color.WHITE);
 
-        roomIdField.setPromptText("Enter room ID");
+        // =================================================
+        // ROOM TITLE
+        // =================================================
+
+        Label roomTitle =
+                new Label("ROOM ID");
+
+        roomTitle.setFont(
+                Font.font(18));
+
+        roomTitle.setTextFill(
+                Color.LIGHTGRAY);
+
+        // =================================================
+        // ROOM ID
+        // =================================================
+
+        roomIdField =
+                new TextField();
+
+        roomIdField.setPromptText(
+                "Enter room ID");
 
         roomIdField.setMaxWidth(280);
         roomIdField.setPrefHeight(50);
 
-        roomIdField.setAlignment(Pos.CENTER);
+        roomIdField.setAlignment(
+                Pos.CENTER);
 
-        roomIdField.setFont(Font.font(20));
+        roomIdField.setFont(
+                Font.font(20));
 
-        Button joinButton = new Button("JOIN");
+        /*
+         * Room ID hiện tại là 5 ký tự.
+         */
+        roomIdField.setOnKeyTyped(e -> {
+
+            String text =
+                    roomIdField.getText();
+
+            if (text.length() > 5) {
+
+                roomIdField.setText(
+                        text.substring(0, 5));
+
+                roomIdField.positionCaret(5);
+            }
+        });
+
+        // =================================================
+        // JOIN
+        // =================================================
+
+        joinButton =
+                new Button("JOIN");
 
         joinButton.setPrefWidth(250);
         joinButton.setPrefHeight(55);
 
-        joinButton.setFont(Font.font(18));
+        joinButton.setFont(
+                Font.font(18));
 
-        joinButton.setOnAction(e ->
-                joinRoom());
+        joinButton.setOnAction(
+                e -> joinRoom());
 
-        statusLabel = new Label();
+        // =================================================
+        // STATUS
+        // =================================================
 
-        statusLabel.setTextFill(Color.LIGHTGRAY);
+        statusLabel =
+                new Label();
 
-        Button backButton = new Button("BACK");
+        statusLabel.setTextFill(
+                Color.LIGHTGRAY);
+
+        // =================================================
+        // BACK
+        // =================================================
+
+        backButton =
+                new Button("BACK");
 
         backButton.setPrefWidth(250);
         backButton.setPrefHeight(45);
 
-        backButton.setOnAction(e ->
-                app.showMainMenu());
+        backButton.setFont(
+                Font.font(16));
+
+        backButton.setOnAction(
+                e -> {
+
+                    reset();
+
+                    app.showMainMenu();
+                });
+
+        // =================================================
+        // ADD
+        // =================================================
 
         getChildren().addAll(
                 title,
@@ -79,12 +155,20 @@ public class JoinRoomView extends VBox {
         );
     }
 
+    // =====================================================
+    // JOIN ROOM
+    // =====================================================
+
     private void joinRoom() {
 
         String roomId =
                 roomIdField.getText()
                         .trim()
                         .toUpperCase();
+
+        // =================================================
+        // VALIDATE
+        // =================================================
 
         if (roomId.isEmpty()) {
 
@@ -94,15 +178,65 @@ public class JoinRoomView extends VBox {
             return;
         }
 
+        if (roomId.length() != 5) {
+
+            statusLabel.setText(
+                    "Room ID must contain 5 characters.");
+
+            return;
+        }
+
+        // =================================================
+        // SEND
+        // =================================================
+
         statusLabel.setText(
-                "Joining room " + roomId + "...");
+                "Joining room "
+                        + roomId
+                        + "...");
 
-        /*
-         * Sau này gọi WebSocket:
-         *
-         * JOIN_ROOM|A7K29
-         */
+        joinButton.setDisable(
+                true);
 
-        app.joinRoom(roomId);
+        backButton.setDisable(
+                true);
+
+        app.joinRoom(
+                roomId);
+    }
+
+    // =====================================================
+    // ERROR
+    // =====================================================
+
+    public void setError(
+            String message) {
+
+        statusLabel.setText(
+                message);
+
+        joinButton.setDisable(
+                false);
+
+        backButton.setDisable(
+                false);
+    }
+
+    // =====================================================
+    // RESET
+    // =====================================================
+
+    public void reset() {
+
+        roomIdField.clear();
+
+        statusLabel.setText(
+                "");
+
+        joinButton.setDisable(
+                false);
+
+        backButton.setDisable(
+                false);
     }
 }
