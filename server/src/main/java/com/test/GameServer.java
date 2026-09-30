@@ -11,7 +11,7 @@ import com.test.common.GameConfig;
 import com.test.common.PhysicsEngine;
 import com.test.common.PlayerState;
 import com.test.common.map.MapData;
-import com.test.map.GameMap;
+import com.test.map.MapRepository;
 
 import jakarta.annotation.PostConstruct;
 
@@ -27,24 +27,24 @@ public class GameServer {
     private final PhysicsEngine physicsEngine =
             new PhysicsEngine();
 
-    private final GameMap gameMap;
+    private final MapRepository mapRepository;
 
     private final MapData map;
 
     private final RoomManager roomManager =
             new RoomManager();
 
-    public GameServer(GameMap gameMap) {
+    public GameServer(MapRepository mapRepository) {
 
-        this.gameMap = gameMap;
+        this.mapRepository = mapRepository;
 
         this.map =
-                gameMap.getMap();
+                mapRepository.getMap("map01");
     }
 
-    public GameMap getGameMap() {
+    public MapRepository getMapRepository() {
 
-        return gameMap;
+        return mapRepository;
     }
 
     public MapData getMap() {
