@@ -7,30 +7,10 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-/**
- * Quản lý toàn bộ room trên server.
- *
- * RoomManager KHÔNG xử lý:
- *
- * - WebSocket
- * - physics
- * - game tick
- * - broadcast
- *
- * Nó chỉ chịu trách nhiệm lifecycle của room.
- */
 public class RoomManager {
 
     private static final int ROOM_ID_LENGTH = 5;
 
-    /*
-     * Không dùng các ký tự dễ nhầm:
-     *
-     * 0 / O
-     * 1 / I
-     *
-     * để người dùng đọc room ID dễ hơn.
-     */
     private static final String ROOM_ID_CHARACTERS =
             "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -44,13 +24,18 @@ public class RoomManager {
     // CREATE
     // =====================================================
 
-    /**
-     * Tạo một room mới.
-     *
-     * Room ID được tạo hoàn toàn ở server.
-     */
     public Room createRoom(
             PlayerSession host) {
+
+        return createRoom(
+                host,
+                Room.DEFAULT_MAP_ID
+        );
+    }
+
+    public Room createRoom(
+            PlayerSession host,
+            String mapId) {
 
         if (host == null) {
 
@@ -59,22 +44,26 @@ public class RoomManager {
             );
         }
 
-        /*
-         * Tạo ID cho đến khi tìm được ID chưa tồn tại.
-         */
+        if (mapId == null
+                || mapId.isBlank()) {
+
+            throw new IllegalArgumentException(
+                    "mapId must not be blank"
+            );
+        }
+
         while (true) {
 
             String roomId =
                     generateRoomId();
 
             Room room =
-                    new Room(roomId);
+                    new Room(
+                            roomId,
+                            Room.DEFAULT_MAX_PLAYERS,
+                            mapId
+                    );
 
-            /*
-             * putIfAbsent đảm bảo atomic.
-             *
-             * Nếu có collision thì thử ID khác.
-             */
             Room existing =
                     rooms.putIfAbsent(
                             roomId,
@@ -83,19 +72,11 @@ public class RoomManager {
 
             if (existing == null) {
 
-                /*
-                 * Room vừa được tạo nên host
-                 * phải join ngay.
-                 */
                 boolean added =
                         room.addPlayer(host);
 
                 if (!added) {
 
-                    /*
-                     * Không nên xảy ra, nhưng nếu xảy ra
-                     * thì rollback room.
-                     */
                     rooms.remove(
                             roomId,
                             room
@@ -128,14 +109,6 @@ public class RoomManager {
         );
     }
 
-    /**
-     * Trả về các room đang chờ người chơi.
-     *
-     * Không trả về:
-     *
-     * - room đã STARTED
-     * - room FULL
-     */
     public List<Room> getAvailableRooms() {
 
         List<Room> result =
@@ -150,10 +123,6 @@ public class RoomManager {
             }
         }
 
-        /*
-         * Sắp xếp để danh sách ổn định hơn
-         * khi client gọi FIND_ROOMS nhiều lần.
-         */
         result.sort(
                 (a, b) ->
                         a.getRoomId()
@@ -179,15 +148,6 @@ public class RoomManager {
     // JOIN
     // =====================================================
 
-    /**
-     * Thử cho player join room.
-     *
-     * Kết quả:
-     *
-     * true  = join thành công
-     * false = room không tồn tại / full /
-     *         started / player đã ở trong room
-     */
     public boolean joinRoom(
             String roomId,
             PlayerSession player) {
@@ -213,15 +173,6 @@ public class RoomManager {
     // LEAVE
     // =====================================================
 
-    /**
-     * Remove player khỏi room.
-     *
-     * Nếu player là host và room vẫn còn người,
-     * tự động chuyển host cho người tiếp theo.
-     *
-     * Nếu room trở thành empty,
-     * room sẽ bị xóa khỏi manager.
-     */
     public Room leaveRoom(
             String roomId,
             String playerId) {
@@ -245,9 +196,6 @@ public class RoomManager {
 
         room.removePlayer(playerId);
 
-        /*
-         * Room empty => xóa room.
-         */
         if (room.isEmpty()) {
 
             rooms.remove(
@@ -258,12 +206,6 @@ public class RoomManager {
             return null;
         }
 
-        /*
-         * Host rời room.
-         *
-         * Chọn player đầu tiên còn lại
-         * làm host mới.
-         */
         if (wasHost
                 || room.getHostPlayerId() == null) {
 
@@ -286,16 +228,6 @@ public class RoomManager {
         return room;
     }
 
-    /**
-     * Tìm room mà player đang ở.
-     *
-     * Dùng cho:
-     *
-     * - INPUT
-     * - START_GAME
-     * - LEAVE_ROOM
-     * - disconnect
-     */
     public Room findRoomByPlayer(
             String playerId) {
 

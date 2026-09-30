@@ -29,27 +29,18 @@ public class GameServer {
 
     private final MapRepository mapRepository;
 
-    private final MapData map;
-
     private final RoomManager roomManager =
             new RoomManager();
 
-    public GameServer(MapRepository mapRepository) {
+    public GameServer(
+            MapRepository mapRepository) {
 
         this.mapRepository = mapRepository;
-
-        this.map =
-                mapRepository.getMap("map01");
     }
 
     public MapRepository getMapRepository() {
 
         return mapRepository;
-    }
-
-    public MapData getMap() {
-
-        return map;
     }
 
     // =====================================================
@@ -190,6 +181,25 @@ public class GameServer {
                 : roomManager.getRooms()) {
 
             if (!room.isStarted()) {
+
+                continue;
+            }
+
+            MapData map;
+
+            try {
+
+                map =
+                        mapRepository.getMap(
+                                room.getMapId());
+
+            } catch (IllegalArgumentException e) {
+
+                System.err.println(
+                        "Failed to load map for room "
+                                + room.getRoomId()
+                                + ": "
+                                + e.getMessage());
 
                 continue;
             }

@@ -24,7 +24,7 @@ public class MapRepository {
     private final Map<String, MapInfo> mapInfos = new LinkedHashMap<>();
 
     public MapRepository(ObjectMapper objectMapper) {
-        loadMap(objectMapper, "maps/map01.json");
+        loadMap(objectMapper, "map/map01.json");
     }
 
     public MapData getMap(String mapId) {
