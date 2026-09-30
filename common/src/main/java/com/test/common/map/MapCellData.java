@@ -6,7 +6,16 @@ public class MapCellData {
     private final int gridY;
     private final MapCellType type;
 
-    public MapCellData(int gridX, int gridY, MapCellType type) {
+    public MapCellData(
+            int gridX,
+            int gridY,
+            MapCellType type) {
+
+        if (type == null) {
+            throw new IllegalArgumentException(
+                    "type must not be null");
+        }
+
         this.gridX = gridX;
         this.gridY = gridY;
         this.type = type;

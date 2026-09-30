@@ -17,15 +17,18 @@ public class MapData {
             int cellSize) {
 
         if (width <= 0) {
-            throw new IllegalArgumentException("width must be positive");
+            throw new IllegalArgumentException(
+                    "width must be positive");
         }
 
         if (height <= 0) {
-            throw new IllegalArgumentException("height must be positive");
+            throw new IllegalArgumentException(
+                    "height must be positive");
         }
 
         if (cellSize <= 0) {
-            throw new IllegalArgumentException("cellSize must be positive");
+            throw new IllegalArgumentException(
+                    "cellSize must be positive");
         }
 
         this.width = width;
@@ -54,22 +57,31 @@ public class MapData {
         return height / cellSize;
     }
 
-    public void addCell(MapCellData cell) {
+    public void addCell(
+            MapCellData cell) {
+
         if (cell == null) {
-            throw new IllegalArgumentException("cell must not be null");
+            throw new IllegalArgumentException(
+                    "cell must not be null");
         }
 
         cells.add(cell);
     }
 
     public List<MapCellData> getCells() {
-        return Collections.unmodifiableList(cells);
+        return Collections.unmodifiableList(
+                cells);
     }
 
-    public MapCellData getCell(int gridX, int gridY) {
+    public MapCellData getCell(
+            int gridX,
+            int gridY) {
+
         for (MapCellData cell : cells) {
+
             if (cell.getGridX() == gridX
                     && cell.getGridY() == gridY) {
+
                 return cell;
             }
         }
@@ -77,7 +89,10 @@ public class MapData {
         return null;
     }
 
-    public boolean isInside(int gridX, int gridY) {
+    public boolean isInside(
+            int gridX,
+            int gridY) {
+
         return gridX >= 0
                 && gridX < getColumns()
                 && gridY >= 0
