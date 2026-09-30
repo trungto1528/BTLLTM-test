@@ -1,0 +1,46 @@
+{
+  "id": "map01",
+  "name": "Map 01",
+  "width": 800,
+  "height": 6000,
+  "cellSize": 40,
+  "floor": 149,
+  "walls": {
+    "left": 0,
+    "right": 19,
+    "fromY": 0,
+    "toY": 149
+  },
+  "platforms": [
+    { "x": 1, "y": 145, "width": 5 },
+    { "x": 8, "y": 136, "width": 4 },
+    { "x": 13, "y": 127, "width": 3 },
+    { "x": 7, "y": 118, "width": 4 },
+    { "x": 2, "y": 108, "width": 5 },
+    { "x": 10, "y": 99, "width": 4 },
+    { "x": 15, "y": 91, "width": 3 },
+    { "x": 9, "y": 83, "width": 4 },
+    { "x": 4, "y": 74, "width": 4 },
+    { "x": 11, "y": 65, "width": 3 },
+    { "x": 15, "y": 57, "width": 4 },
+    { "x": 8, "y": 49, "width": 3 },
+    { "x": 3, "y": 41, "width": 4 },
+    { "x": 10, "y": 33, "width": 4 },
+    { "x": 15, "y": 25, "width": 3 },
+    { "x": 9, "y": 18, "width": 4 },
+    { "x": 4, "y": 11, "width": 3 }
+  ],
+  "triangles": [
+    { "x": 7, "y": 139, "type": "TRIANGLE_LEFT" },
+    { "x": 12, "y": 130, "type": "TRIANGLE_RIGHT" },
+    { "x": 6, "y": 121, "type": "TRIANGLE_LEFT" },
+    { "x": 11, "y": 102, "type": "TRIANGLE_RIGHT" },
+    { "x": 14, "y": 94, "type": "TRIANGLE_LEFT" },
+    { "x": 8, "y": 77, "type": "TRIANGLE_RIGHT" },
+    { "x": 13, "y": 68, "type": "TRIANGLE_LEFT" },
+    { "x": 7, "y": 52, "type": "TRIANGLE_RIGHT" },
+    { "x": 12, "y": 36, "type": "TRIANGLE_LEFT" },
+    { "x": 14, "y": 21, "type": "TRIANGLE_RIGHT" },
+    { "x": 8, "y": 14, "type": "TRIANGLE_LEFT" }
+  ]
+}
