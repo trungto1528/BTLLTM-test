@@ -22,9 +22,6 @@ public class GameApp extends Application {
 
     private Stage stage;
 
-    /*
-     * Chỉ sử dụng MỘT Scene duy nhất.
-     */
     private Scene scene;
 
     private GameWebSocketClient network;
@@ -35,43 +32,20 @@ public class GameApp extends Application {
     private FindRoomView findRoom;
     private LobbyView lobby;
 
-    /*
-     * GameScene chỉ được tạo khi server gửi
-     * GAME_STARTED.
-     */
     private GameScene gameScene;
 
-    /*
-     * Container dùng khi đang chơi game.
-     *
-     * GameScene nằm dưới.
-     * Toast thông báo nằm trên.
-     */
     private StackPane gameContainer;
 
-    /*
-     * Toast thông báo người chơi rời trận.
-     */
     private Label departureToast;
 
-    /*
-     * Timer tự ẩn toast.
-     */
     private PauseTransition departureToastTimer;
 
-    /*
-     * Player ID do server cấp.
-     */
     private String localPlayerId;
 
-    /*
-     * Room hiện tại.
-     */
     private String currentRoomId;
 
-    /*
-     * Có phải host hay không.
-     */
+    private String currentMapId;
+
     private boolean currentHost;
 
     // =====================================================
@@ -153,6 +127,10 @@ public class GameApp extends Application {
 
     public String getCurrentRoomId() {
         return currentRoomId;
+    }
+
+    public String getCurrentMapId() {
+        return currentMapId;
     }
 
     public boolean isCurrentHost() {
@@ -254,8 +232,21 @@ public class GameApp extends Application {
 
     public void createRoom() {
 
+        createRoom("map01");
+    }
+
+    public void createRoom(
+            String mapId) {
+
+        if (mapId == null
+                || mapId.isBlank()) {
+
+            mapId = "map01";
+        }
+
         network.send(
-                "CREATE_ROOM");
+                "CREATE_ROOM|"
+                        + mapId);
     }
 
     // =====================================================
@@ -307,6 +298,9 @@ public class GameApp extends Application {
                 "LEAVE_ROOM");
 
         currentRoomId =
+                null;
+
+        currentMapId =
                 null;
 
         currentHost =
@@ -501,12 +495,35 @@ public class GameApp extends Application {
     private void handleRoomCreated(
             String message) {
 
+        /*
+         * Protocol:
+         *
+         * ROOM_CREATED|roomId|mapId
+         */
+
+        String[] parts =
+                message.split("\\|");
+
+        if (parts.length < 3) {
+
+            System.err.println(
+                    "Invalid ROOM_CREATED: "
+                            + message);
+
+            return;
+        }
+
         String roomId =
-                message.substring(
-                        "ROOM_CREATED|".length());
+                parts[1];
+
+        String mapId =
+                parts[2];
 
         currentRoomId =
                 roomId;
+
+        currentMapId =
+                mapId;
 
         currentHost =
                 true;
@@ -523,12 +540,35 @@ public class GameApp extends Application {
     private void handleRoomJoined(
             String message) {
 
+        /*
+         * Protocol:
+         *
+         * ROOM_JOINED|roomId|mapId
+         */
+
+        String[] parts =
+                message.split("\\|");
+
+        if (parts.length < 3) {
+
+            System.err.println(
+                    "Invalid ROOM_JOINED: "
+                            + message);
+
+            return;
+        }
+
         String roomId =
-                message.substring(
-                        "ROOM_JOINED|".length());
+                parts[1];
+
+        String mapId =
+                parts[2];
 
         currentRoomId =
                 roomId;
+
+        currentMapId =
+                mapId;
 
         /*
          * Chưa tự đoán host.
@@ -553,13 +593,13 @@ public class GameApp extends Application {
         /*
          * Protocol:
          *
-         * ROOM_STATE|roomId|count|max|hostId
+         * ROOM_STATE|roomId|count|max|hostId|mapId
          */
 
         String[] parts =
                 message.split("\\|");
 
-        if (parts.length < 5) {
+        if (parts.length < 6) {
 
             System.err.println(
                     "Invalid ROOM_STATE: "
@@ -577,6 +617,9 @@ public class GameApp extends Application {
 
         String hostId =
                 parts[4];
+
+        String mapId =
+                parts[5];
 
         try {
 
@@ -610,19 +653,20 @@ public class GameApp extends Application {
         currentRoomId =
                 roomId;
 
+        currentMapId =
+                mapId;
+
         currentHost =
                 localPlayerId != null
                         && localPlayerId.equals(
                                 hostId);
 
         /*
-         * QUAN TRỌNG:
-         *
          * Nếu đang trong GameScene thì
-         * KHÔNG được đưa client về Lobby.
+         * không được đưa client về Lobby.
          *
          * ROOM_STATE lúc này chỉ dùng để
-         * cập nhật currentHost.
+         * cập nhật room information.
          */
         if (gameScene != null
                 && scene.getRoot()
@@ -639,6 +683,9 @@ public class GameApp extends Application {
             final String finalRoomId =
                     roomId;
 
+            final String finalMapId =
+                    mapId;
+
             final int finalPlayerCount =
                     playerCount;
 
@@ -650,6 +697,9 @@ public class GameApp extends Application {
 
             Platform.runLater(
                     () -> {
+
+                        currentMapId =
+                                finalMapId;
 
                         showLobby(
                                 finalRoomId,
@@ -665,6 +715,9 @@ public class GameApp extends Application {
 
         } else {
 
+            final String finalMapId =
+                    mapId;
+
             final int finalPlayerCount =
                     playerCount;
 
@@ -676,6 +729,9 @@ public class GameApp extends Application {
 
             Platform.runLater(
                     () -> {
+
+                        currentMapId =
+                                finalMapId;
 
                         lobby.setRoomId(
                                 roomId);
@@ -709,12 +765,19 @@ public class GameApp extends Application {
         }
 
         /*
-         * ROOM_LIST|roomId|currentPlayers|maxPlayers|OPEN
+         * Protocol:
+         *
+         * ROOM_LIST|
+         * roomId|
+         * currentPlayers|
+         * maxPlayers|
+         * OPEN|
+         * mapId
          */
         String[] parts =
                 message.split("\\|");
 
-        if (parts.length < 5) {
+        if (parts.length < 6) {
 
             System.err.println(
                     "Invalid ROOM_LIST: "
@@ -729,6 +792,9 @@ public class GameApp extends Application {
         int currentPlayers;
 
         int maxPlayers;
+
+        String mapId =
+                parts[5];
 
         try {
 
@@ -755,6 +821,13 @@ public class GameApp extends Application {
         final int finalMaxPlayers =
                 maxPlayers;
 
+        /*
+         * Tạm thời FindRoomView vẫn nhận
+         * 3 tham số như code cũ.
+         *
+         * mapId sẽ được dùng ở bước sửa
+         * FindRoomView tiếp theo.
+         */
         Platform.runLater(
                 () -> findRoom.addRoom(
                         roomId,
@@ -805,7 +878,11 @@ public class GameApp extends Application {
          * Chỉ client vừa gửi LEAVE_ROOM
          * mới nhận ROOM_LEFT.
          */
+
         currentRoomId =
+                null;
+
+        currentMapId =
                 null;
 
         currentHost =
@@ -869,9 +946,7 @@ public class GameApp extends Application {
                 parts[4];
 
         /*
-         * =================================================
-         * CHỈ XỬ LÝ NGƯỜI CÙNG ROOM
-         * =================================================
+         * Chỉ xử lý người cùng room.
          */
         if (currentRoomId == null
                 || !currentRoomId.equals(roomId)) {
@@ -890,12 +965,6 @@ public class GameApp extends Application {
                 && scene.getRoot()
                         == gameContainer) {
 
-            /*
-             * Cập nhật host local.
-             *
-             * Nếu mình là host mới thì
-             * currentHost = true.
-             */
             currentHost =
                     localPlayerId != null
                             && localPlayerId.equals(
@@ -953,12 +1022,26 @@ public class GameApp extends Application {
         /*
          * Protocol:
          *
-         * GAME_STARTED|ABCDE
+         * GAME_STARTED|roomId|mapId
          */
 
+        String[] parts =
+                message.split("\\|");
+
+        if (parts.length < 3) {
+
+            System.err.println(
+                    "Invalid GAME_STARTED: "
+                            + message);
+
+            return;
+        }
+
         String roomId =
-                message.substring(
-                        "GAME_STARTED|".length());
+                parts[1];
+
+        String mapId =
+                parts[2];
 
         /*
          * Chỉ chuyển game nếu đúng room
@@ -971,9 +1054,14 @@ public class GameApp extends Application {
             return;
         }
 
+        currentMapId =
+                mapId;
+
         System.out.println(
                 "Game started: "
-                        + roomId);
+                        + roomId
+                        + " | map="
+                        + mapId);
 
         Platform.runLater(
                 this::openGameScene);
@@ -1068,10 +1156,6 @@ public class GameApp extends Application {
                 departureToast,
                 Pos.BOTTOM_LEFT);
 
-        /*
-         * Cách mép trái 20px,
-         * cách mép dưới 20px.
-         */
         StackPane.setMargin(
                 departureToast,
                 new javafx.geometry.Insets(
@@ -1097,15 +1181,9 @@ public class GameApp extends Application {
 
         gameScene.startLoop();
 
-        /*
-         * Dùng Scene hiện tại.
-         */
         scene.setRoot(
                 gameContainer);
 
-        /*
-         * Nhận keyboard input.
-         */
         gameScene.requestFocus();
     }
 
@@ -1169,12 +1247,6 @@ public class GameApp extends Application {
             return "unknown";
         }
 
-        /*
-         * WebSocketSession ID thường khá dài.
-         *
-         * Chỉ hiển thị 6 ký tự đầu
-         * cho dễ đọc.
-         */
         if (playerId.length() <= 6) {
 
             return playerId;

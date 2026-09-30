@@ -71,7 +71,9 @@ public class PhysicsEngine {
                 map,
                 oldY);
 
-        resolveMapBounds(player);
+        resolveMapBounds(
+                player,
+                map);
     }
 
     private void resolveHorizontalCollision(
@@ -139,9 +141,8 @@ public class PhysicsEngine {
                             -player.getVelocityX()
                                     * GameConfig.BOUND_RATIO);
                 }
-            }
 
-            else if (player.getVelocityX() < 0) {
+            } else if (player.getVelocityX() < 0) {
 
                 boolean crossed =
                         oldX
@@ -196,9 +197,9 @@ public class PhysicsEngine {
                         x,
                         y,
                         size);
-            }
 
-            else if (type == MapCellType.TRIANGLE_LEFT) {
+            } else if (type
+                    == MapCellType.TRIANGLE_LEFT) {
 
                 resolveTriangleLeftCollision(
                         player,
@@ -206,9 +207,9 @@ public class PhysicsEngine {
                         x,
                         y,
                         size);
-            }
 
-            else if (type == MapCellType.TRIANGLE_RIGHT) {
+            } else if (type
+                    == MapCellType.TRIANGLE_RIGHT) {
 
                 resolveTriangleRightCollision(
                         player,
@@ -260,9 +261,8 @@ public class PhysicsEngine {
 
                 player.setOnGround(true);
             }
-        }
 
-        else if (player.getVelocityY() < 0) {
+        } else if (player.getVelocityY() < 0) {
 
             boolean crossedBottom =
                     oldY
@@ -322,9 +322,8 @@ public class PhysicsEngine {
                     surfaceY
                             - GameConfig.PLAYER_HEIGHT);
 
-            player.setVelocityY(0);
-
-            player.setOnGround(true);
+            applyLeftSlopeVelocity(
+                    player);
         }
     }
 
@@ -369,21 +368,71 @@ public class PhysicsEngine {
                     surfaceY
                             - GameConfig.PLAYER_HEIGHT);
 
-            player.setVelocityY(0);
-
-            player.setOnGround(true);
+            applyRightSlopeVelocity(
+                    player);
         }
     }
 
-    private void resolveMapBounds(
+    private void applyLeftSlopeVelocity(
             PlayerState player) {
 
+        double speed =
+                Math.abs(player.getVelocityY());
+
+        if (speed < 1.0) {
+            speed =
+                    GameConfig.GRAVITY
+                            * GameConfig.TICK_DT;
+        }
+
+        double slopeSpeed =
+                speed
+                        * 0.70710678118;
+
+        player.setVelocityX(
+                -slopeSpeed);
+
+        player.setVelocityY(
+                slopeSpeed);
+
+        player.setOnGround(false);
+    }
+
+    private void applyRightSlopeVelocity(
+            PlayerState player) {
+
+        double speed =
+                Math.abs(player.getVelocityY());
+
+        if (speed < 1.0) {
+            speed =
+                    GameConfig.GRAVITY
+                            * GameConfig.TICK_DT;
+        }
+
+        double slopeSpeed =
+                speed
+                        * 0.70710678118;
+
+        player.setVelocityX(
+                slopeSpeed);
+
+        player.setVelocityY(
+                slopeSpeed);
+
+        player.setOnGround(false);
+    }
+
+    private void resolveMapBounds(
+            PlayerState player,
+            MapData map) {
+
         double leftWall =
-                GameConfig.WALL_WIDTH;
+                map.getCellSize();
 
         double rightWall =
-                GameConfig.MAP_WIDTH
-                        - GameConfig.WALL_WIDTH;
+                map.getWidth()
+                        - map.getCellSize();
 
         if (player.getX() < leftWall) {
 
@@ -404,8 +453,8 @@ public class PhysicsEngine {
         }
 
         double floorY =
-                GameConfig.MAP_HEIGHT
-                        - GameConfig.WALL_WIDTH;
+                map.getHeight()
+                        - map.getCellSize();
 
         if (player.getY()
                 + GameConfig.PLAYER_HEIGHT

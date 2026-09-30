@@ -11,9 +11,12 @@ import javafx.scene.text.Font;
 
 public class CreateRoomView extends VBox {
 
+    private static final String DEFAULT_MAP_ID = "map01";
+
     private final GameApp app;
 
     private final Label statusLabel;
+    private final Label mapLabel;
     private final Button createButton;
     private final Button backButton;
 
@@ -58,6 +61,22 @@ public class CreateRoomView extends VBox {
                 Color.LIGHTGRAY);
 
         // =================================================
+        // MAP
+        // =================================================
+
+        mapLabel =
+                new Label(
+                        "Map: "
+                                + DEFAULT_MAP_ID
+                );
+
+        mapLabel.setFont(
+                Font.font(18));
+
+        mapLabel.setTextFill(
+                Color.WHITE);
+
+        // =================================================
         // STATUS
         // =================================================
 
@@ -90,7 +109,8 @@ public class CreateRoomView extends VBox {
 
                     setCreating();
 
-                    app.createRoom();
+                    app.createRoom(
+                            DEFAULT_MAP_ID);
                 });
 
         // =================================================
@@ -116,6 +136,7 @@ public class CreateRoomView extends VBox {
         getChildren().addAll(
                 title,
                 description,
+                mapLabel,
                 statusLabel,
                 createButton,
                 backButton
@@ -147,6 +168,11 @@ public class CreateRoomView extends VBox {
 
         statusLabel.setText(
                 "Ready to create room."
+        );
+
+        mapLabel.setText(
+                "Map: "
+                        + DEFAULT_MAP_ID
         );
 
         createButton.setDisable(

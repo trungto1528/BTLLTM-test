@@ -1,12 +1,10 @@
 package com.test.core;
 
-import java.util.List;
-
 import com.test.common.GameConfig;
 import com.test.common.InputCommand;
 import com.test.common.PhysicsEngine;
-import com.test.common.PlatformData;
 import com.test.common.PlayerState;
+import com.test.common.map.MapData;
 
 public class ClientPlayerController {
 
@@ -440,12 +438,16 @@ public class ClientPlayerController {
      *
      * Simulation:
      *
-     *     60 TPS
+     *     40 TPS
      *
      * Không phụ thuộc FPS render.
      */
     public void tick(
-            List<PlatformData> platforms) {
+            MapData map) {
+
+        if (map == null) {
+            return;
+        }
 
         /*
          * Charge trước physics.
@@ -456,10 +458,12 @@ public class ClientPlayerController {
          * Physics sử dụng:
          *
          *     GameConfig.TICK_DT
+         *
+         * và chính MapData mà server sử dụng.
          */
         physicsEngine.tick(
                 state,
-                platforms,
+                map,
                 movingLeft,
                 movingRight);
     }
