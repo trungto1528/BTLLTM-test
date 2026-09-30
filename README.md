@@ -13,7 +13,7 @@ The project follows a client-server architecture. The server owns the authoritat
 - Directional movement with keyboard input.
 - Charge-based jumping.
 - Server-authoritative physics.
-- Fixed 60 TPS game simulation.
+- Fixed 40 TPS game simulation.
 - Periodic authoritative world snapshots.
 - Client-side prediction for responsive local movement.
 - Server reconciliation using input sequence numbers.
@@ -31,7 +31,7 @@ The project follows a client-server architecture. The server owns the authoritat
 | Server | Spring Boot WebSocket |
 | Build | Maven |
 | Architecture | Client-Server |
-| Simulation | Fixed timestep, 60 TPS |
+| Simulation | Fixed timestep, 40 TPS |
 
 ## Project Structure
 
@@ -169,19 +169,20 @@ GameScene
 | `A` / `Left Arrow` | Move left |
 | `D` / `Right Arrow` | Move right |
 | `Space` | Charge/release jump |
-| `ESC` | Reserved for in-game pause behavior |
 
-The exact behavior of controls is implemented in `GameScene` and processed authoritatively by the server.
+The current source does **not** implement the planned in-game ESC pause yet.
 
 ## Game Simulation
 
+
+
 ### Fixed Timestep
 
-The server runs one global game loop at 60 ticks per second.
+The server runs one global game loop at 40 ticks per second.
 
 ```text
-TICK_RATE = 60 TPS
-TICK_DT   ≈ 16.67 ms
+TICK_RATE = 40 TPS
+TICK_DT   ≈ 25 ms
 ```
 
 A fixed timestep prevents the physics result from depending directly on the frame rate of the machine running the server.
@@ -198,14 +199,14 @@ The server uses an absolute deadline for its loop rather than simply sleeping fo
 
 ### Snapshot Rate
 
-Simulation runs at 60 TPS while world snapshots are sent less frequently.
+Simulation runs at 40 TPS while world snapshots are sent less frequently.
 
 With the current configuration:
 
 ```text
-60 simulation ticks / second
+40 simulation ticks / second
 20 world snapshots / second
-1 snapshot every 3 simulation ticks
+1 snapshot every 2 simulation ticks
 ```
 
 This reduces network traffic while retaining a high-frequency authoritative simulation.
@@ -607,22 +608,36 @@ When modifying the networking or simulation code, keep the following principles:
 
 ## Project Status
 
-The project currently provides the core multiplayer architecture and gameplay foundation:
+Implemented in the current source:
 
-- Client/server connection
-- Room management
-- Multiplayer game start
-- Authoritative server simulation
-- 60 TPS fixed timestep
-- Input sequencing
-- Client prediction
-- Server reconciliation
-- Remote interpolation
-- Player departure notification
+- WebSocket client/server connection.
+- Player ID assignment.
+- Room creation, discovery, joining and leaving.
+- Four-player room capacity.
+- Host management and host transfer.
+- Host-controlled game start.
+- Server-authoritative physics.
+- Fixed **40 TPS** simulation.
+- **20 snapshots/second**.
+- Input sequencing and server ACK.
+- Client-side local prediction.
+- Server reconciliation with unacknowledged input replay.
+- Remote-player interpolation.
+- Player departure notification.
+- Vertical camera and platform map.
 
-Additional gameplay/UI features can be added on top of this architecture without changing the basic authoritative synchronization model.
+Not yet implemented in the current source:
+
+- In-game ESC local pause.
+- Persistent disconnected-player visual indicator above the last player position.
+- Player display names.
+- Player-selected colors.
+- In-game player height scoreboard/table.
+
+These should not be described as completed features until they are present in the source.
 
 ## License
+
 
 This project is developed as an academic/course project.
 
