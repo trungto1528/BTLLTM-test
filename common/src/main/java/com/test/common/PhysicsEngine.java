@@ -1,39 +1,19 @@
 package com.test.common;
 
-import java.util.List;
+import com.test.common.map.MapCellData;
+import com.test.common.map.MapCellType;
+import com.test.common.map.MapData;
 
 public class PhysicsEngine {
 
-    /**
-     * Update player đúng 1 game tick.
-     *
-     * Toàn bộ game simulation sử dụng:
-     *
-     *     GameConfig.TICK_RATE = 60
-     *
-     * nên mỗi lần gọi method này tương ứng đúng 1/60 giây.
-     *
-     * Không nhận deltaTime từ bên ngoài để tránh việc
-     * physics phụ thuộc vào FPS hoặc thời gian frame.
-     */
     public void tick(
             PlayerState player,
-            List<PlatformData> platforms,
+            MapData map,
             boolean movingLeft,
             boolean movingRight) {
 
         final double deltaTime =
                 GameConfig.TICK_DT;
-
-        /*
-         * =========================
-         * HORIZONTAL MOVEMENT
-         * =========================
-         *
-         * Chỉ cho điều khiển A/D trực tiếp
-         * khi player đang đứng trên mặt đất
-         * và không charge jump.
-         */
 
         if (player.isOnGround()
                 && !player.isChargingJump()) {
@@ -57,23 +37,6 @@ public class PhysicsEngine {
         double oldX = player.getX();
         double oldY = player.getY();
 
-        /*
-         * =========================
-         * GRAVITY
-         * =========================
-         *
-         * Khi đang charge jump:
-         *
-         * - Player đứng yên theo trục Y
-         * - Không bị gravity kéo xuống
-         *
-         * Khi release:
-         *
-         * - chargingJump = false
-         * - velocityY đã được set âm
-         * - gravity bắt đầu hoạt động
-         */
-
         if (!player.isChargingJump()) {
 
             player.setVelocityY(
@@ -82,12 +45,6 @@ public class PhysicsEngine {
                             * deltaTime);
         }
 
-        /*
-         * =========================
-         * MOVE X
-         * =========================
-         */
-
         double newX =
                 player.getX()
                         + player.getVelocityX()
@@ -95,87 +52,10 @@ public class PhysicsEngine {
 
         player.setX(newX);
 
-        /*
-         * =========================
-         * SIDE COLLISION
-         * =========================
-         */
-
-        for (PlatformData platform : platforms) {
-
-            boolean verticalOverlap =
-                    player.getY()
-                            + GameConfig.PLAYER_HEIGHT
-                            > platform.getY()
-                    &&
-                    player.getY()
-                            < platform.getY()
-                                    + platform.getHeight();
-
-            if (!verticalOverlap) {
-                continue;
-            }
-
-            /*
-             * Moving right
-             */
-
-            if (player.getVelocityX() > 0) {
-
-                boolean crossed =
-                        oldX
-                                + GameConfig.PLAYER_WIDTH
-                                <= platform.getX()
-                        &&
-                        player.getX()
-                                + GameConfig.PLAYER_WIDTH
-                                >= platform.getX();
-
-                if (crossed) {
-
-                    player.setX(
-                            platform.getX()
-                                    - GameConfig.PLAYER_WIDTH);
-
-                    player.setVelocityX(
-                            -player.getVelocityX()
-                                    * GameConfig.BOUND_RATIO);
-                }
-            }
-
-            /*
-             * Moving left
-             */
-
-            else if (player.getVelocityX() < 0) {
-
-                boolean crossed =
-                        oldX
-                                >= platform.getX()
-                                        + platform.getWidth()
-                        &&
-                        player.getX()
-                                <= platform.getX()
-                                        + platform.getWidth();
-
-                if (crossed) {
-
-                    player.setX(
-                            platform.getX()
-                                    + platform.getWidth());
-
-                    player.setVelocityX(
-                            -player.getVelocityX()
-                                    * GameConfig.BOUND_RATIO);
-                }
-            }
-        }
-
-        /*
-         * =========================
-         * MOVE Y
-         * =========================
-         */
+        resolveHorizontalCollision(
+                player,
+                map,
+                oldX);
 
         double newY =
                 player.getY()
@@ -184,132 +64,344 @@ public class PhysicsEngine {
 
         player.setY(newY);
 
-        /*
-         * Mặc định sau khi update Y,
-         * player không còn đứng trên ground.
-         *
-         * Collision bên dưới sẽ set lại true
-         * nếu player thực sự đáp xuống.
-         */
-
         player.setOnGround(false);
 
-        /*
-         * =========================
-         * TOP / BOTTOM COLLISION
-         * =========================
-         */
+        resolveVerticalCollision(
+                player,
+                map,
+                oldY);
 
-        for (PlatformData platform : platforms) {
+        resolveMapBounds(player);
+    }
 
-            boolean horizontalOverlap =
-                    player.getX()
-                            + GameConfig.PLAYER_WIDTH
-                            > platform.getX()
-                    &&
-                    player.getX()
-                            < platform.getX()
-                                    + platform.getWidth();
+    private void resolveHorizontalCollision(
+            PlayerState player,
+            MapData map,
+            double oldX) {
 
-            if (!horizontalOverlap) {
+        for (MapCellData cell : map.getCells()) {
+
+            if (cell.isEmpty()) {
                 continue;
             }
 
-            /*
-             * =========================
-             * FALLING
-             * =========================
-             */
+            MapCellType type =
+                    cell.getType();
 
-            if (player.getVelocityY() > 0) {
+            if (type != MapCellType.SQUARE) {
+                continue;
+            }
 
-                boolean crossedTop =
-                        oldY
-                                + GameConfig.PLAYER_HEIGHT
-                                <= platform.getY()
+            double x =
+                    cell.getGridX()
+                            * map.getCellSize();
+
+            double y =
+                    cell.getGridY()
+                            * map.getCellSize();
+
+            double width =
+                    map.getCellSize();
+
+            double height =
+                    map.getCellSize();
+
+            boolean verticalOverlap =
+                    player.getY()
+                            + GameConfig.PLAYER_HEIGHT
+                            > y
+                    &&
+                    player.getY()
+                            < y + height;
+
+            if (!verticalOverlap) {
+                continue;
+            }
+
+            if (player.getVelocityX() > 0) {
+
+                boolean crossed =
+                        oldX
+                                + GameConfig.PLAYER_WIDTH
+                                <= x
                         &&
-                        player.getY()
-                                + GameConfig.PLAYER_HEIGHT
-                                >= platform.getY();
+                        player.getX()
+                                + GameConfig.PLAYER_WIDTH
+                                >= x;
 
-                if (crossedTop) {
+                if (crossed) {
 
-                    player.setY(
-                            platform.getY()
-                                    - GameConfig.PLAYER_HEIGHT);
+                    player.setX(
+                            x
+                                    - GameConfig.PLAYER_WIDTH);
 
-                    player.setVelocityY(0);
-
-                    player.setOnGround(true);
+                    player.setVelocityX(
+                            -player.getVelocityX()
+                                    * GameConfig.BOUND_RATIO);
                 }
             }
 
-            /*
-             * =========================
-             * GOING UP
-             * =========================
-             */
+            else if (player.getVelocityX() < 0) {
 
-            else if (player.getVelocityY() < 0) {
-
-                boolean crossedBottom =
-                        oldY
-                                >= platform.getY()
-                                        + platform.getHeight()
+                boolean crossed =
+                        oldX
+                                >= x + width
                         &&
-                        player.getY()
-                                <= platform.getY()
-                                        + platform.getHeight();
+                        player.getX()
+                                <= x + width;
 
-                if (crossedBottom) {
+                if (crossed) {
 
-                    player.setY(
-                            platform.getY()
-                                    + platform.getHeight());
+                    player.setX(
+                            x + width);
 
-                    player.setVelocityY(0);
+                    player.setVelocityX(
+                            -player.getVelocityX()
+                                    * GameConfig.BOUND_RATIO);
                 }
             }
         }
+    }
 
-        /*
-         * =========================
-         * MAP LEFT WALL
-         * =========================
-         */
+    private void resolveVerticalCollision(
+            PlayerState player,
+            MapData map,
+            double oldY) {
 
-        if (player.getX() < GameConfig.WALL_WIDTH) {
+        for (MapCellData cell : map.getCells()) {
 
-            player.setX(
-                    GameConfig.WALL_WIDTH);
+            if (cell.isEmpty()) {
+                continue;
+            }
+
+            double x =
+                    cell.getGridX()
+                            * map.getCellSize();
+
+            double y =
+                    cell.getGridY()
+                            * map.getCellSize();
+
+            double size =
+                    map.getCellSize();
+
+            MapCellType type =
+                    cell.getType();
+
+            if (type == MapCellType.SQUARE) {
+
+                resolveSquareVerticalCollision(
+                        player,
+                        oldY,
+                        x,
+                        y,
+                        size);
+            }
+
+            else if (type == MapCellType.TRIANGLE_LEFT) {
+
+                resolveTriangleLeftCollision(
+                        player,
+                        oldY,
+                        x,
+                        y,
+                        size);
+            }
+
+            else if (type == MapCellType.TRIANGLE_RIGHT) {
+
+                resolveTriangleRightCollision(
+                        player,
+                        oldY,
+                        x,
+                        y,
+                        size);
+            }
+        }
+    }
+
+    private void resolveSquareVerticalCollision(
+            PlayerState player,
+            double oldY,
+            double x,
+            double y,
+            double size) {
+
+        boolean horizontalOverlap =
+                player.getX()
+                        + GameConfig.PLAYER_WIDTH
+                        > x
+                &&
+                player.getX()
+                        < x + size;
+
+        if (!horizontalOverlap) {
+            return;
+        }
+
+        if (player.getVelocityY() > 0) {
+
+            boolean crossedTop =
+                    oldY
+                            + GameConfig.PLAYER_HEIGHT
+                            <= y
+                    &&
+                    player.getY()
+                            + GameConfig.PLAYER_HEIGHT
+                            >= y;
+
+            if (crossedTop) {
+
+                player.setY(
+                        y
+                                - GameConfig.PLAYER_HEIGHT);
+
+                player.setVelocityY(0);
+
+                player.setOnGround(true);
+            }
+        }
+
+        else if (player.getVelocityY() < 0) {
+
+            boolean crossedBottom =
+                    oldY
+                            >= y + size
+                    &&
+                    player.getY()
+                            <= y + size;
+
+            if (crossedBottom) {
+
+                player.setY(
+                        y + size);
+
+                player.setVelocityY(0);
+            }
+        }
+    }
+
+    private void resolveTriangleLeftCollision(
+            PlayerState player,
+            double oldY,
+            double x,
+            double y,
+            double size) {
+
+        if (player.getVelocityY() <= 0) {
+            return;
+        }
+
+        double playerCenterX =
+                player.getX()
+                        + GameConfig.PLAYER_WIDTH / 2.0;
+
+        if (playerCenterX < x
+                || playerCenterX > x + size) {
+            return;
+        }
+
+        double relativeX =
+                playerCenterX - x;
+
+        double surfaceY =
+                y + size - relativeX;
+
+        double oldBottom =
+                oldY
+                        + GameConfig.PLAYER_HEIGHT;
+
+        double newBottom =
+                player.getY()
+                        + GameConfig.PLAYER_HEIGHT;
+
+        if (oldBottom <= surfaceY
+                && newBottom >= surfaceY) {
+
+            player.setY(
+                    surfaceY
+                            - GameConfig.PLAYER_HEIGHT);
+
+            player.setVelocityY(0);
+
+            player.setOnGround(true);
+        }
+    }
+
+    private void resolveTriangleRightCollision(
+            PlayerState player,
+            double oldY,
+            double x,
+            double y,
+            double size) {
+
+        if (player.getVelocityY() <= 0) {
+            return;
+        }
+
+        double playerCenterX =
+                player.getX()
+                        + GameConfig.PLAYER_WIDTH / 2.0;
+
+        if (playerCenterX < x
+                || playerCenterX > x + size) {
+            return;
+        }
+
+        double relativeX =
+                playerCenterX - x;
+
+        double surfaceY =
+                y + relativeX;
+
+        double oldBottom =
+                oldY
+                        + GameConfig.PLAYER_HEIGHT;
+
+        double newBottom =
+                player.getY()
+                        + GameConfig.PLAYER_HEIGHT;
+
+        if (oldBottom <= surfaceY
+                && newBottom >= surfaceY) {
+
+            player.setY(
+                    surfaceY
+                            - GameConfig.PLAYER_HEIGHT);
+
+            player.setVelocityY(0);
+
+            player.setOnGround(true);
+        }
+    }
+
+    private void resolveMapBounds(
+            PlayerState player) {
+
+        double leftWall =
+                GameConfig.WALL_WIDTH;
+
+        double rightWall =
+                GameConfig.MAP_WIDTH
+                        - GameConfig.WALL_WIDTH;
+
+        if (player.getX() < leftWall) {
+
+            player.setX(leftWall);
 
             player.setVelocityX(0);
         }
 
-        /*
-         * =========================
-         * MAP RIGHT WALL
-         * =========================
-         */
-
         if (player.getX()
                 + GameConfig.PLAYER_WIDTH
-                > GameConfig.MAP_WIDTH
-                        - GameConfig.WALL_WIDTH) {
+                > rightWall) {
 
             player.setX(
-                    GameConfig.MAP_WIDTH
-                            - GameConfig.WALL_WIDTH
+                    rightWall
                             - GameConfig.PLAYER_WIDTH);
 
             player.setVelocityX(0);
         }
-
-        /*
-         * =========================
-         * FLOOR
-         * =========================
-         */
 
         double floorY =
                 GameConfig.MAP_HEIGHT

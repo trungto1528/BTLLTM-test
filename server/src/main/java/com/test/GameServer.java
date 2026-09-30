@@ -1,7 +1,5 @@
 package com.test;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -11,8 +9,9 @@ import org.springframework.web.socket.WebSocketSession;
 
 import com.test.common.GameConfig;
 import com.test.common.PhysicsEngine;
-import com.test.common.PlatformData;
 import com.test.common.PlayerState;
+import com.test.common.map.MapData;
+import com.test.map.GameMap;
 
 import jakarta.annotation.PostConstruct;
 
@@ -28,101 +27,29 @@ public class GameServer {
     private final PhysicsEngine physicsEngine =
             new PhysicsEngine();
 
-    private final List<PlatformData> platforms =
-            new ArrayList<>();
+    private final GameMap gameMap;
 
-    /*
-     * Quản lý toàn bộ room.
-     */
+    private final MapData map;
+
     private final RoomManager roomManager =
             new RoomManager();
 
-    public GameServer() {
+    public GameServer(GameMap gameMap) {
 
-        createMap();
+        this.gameMap = gameMap;
+
+        this.map =
+                gameMap.getMap();
     }
 
-    private void createMap() {
+    public GameMap getGameMap() {
 
-        // =========================
-        // FLOOR 2
-        // =========================
+        return gameMap;
+    }
 
-        platforms.add(
-                new PlatformData(
-                        100, 520, 250, 20));
+    public MapData getMap() {
 
-        platforms.add(
-                new PlatformData(
-                        400, 420, 250, 20));
-
-        platforms.add(
-                new PlatformData(
-                        600, 300, 180, 20));
-
-        platforms.add(
-                new PlatformData(
-                        300, 180, 200, 20));
-
-        // =========================
-        // FLOOR 1
-        // =========================
-
-        platforms.add(
-                new PlatformData(
-                        50, 1050, 250, 20));
-
-        platforms.add(
-                new PlatformData(
-                        300, 950, 220, 20));
-
-        platforms.add(
-                new PlatformData(
-                        500, 820, 220, 20));
-
-        platforms.add(
-                new PlatformData(
-                        650, 700, 120, 20));
-
-        // =========================
-        // FLOOR 0
-        // =========================
-
-        platforms.add(
-                new PlatformData(
-                        100, 1650, 250, 20));
-
-        platforms.add(
-                new PlatformData(
-                        350, 1550, 220, 20));
-
-        platforms.add(
-                new PlatformData(
-                        550, 1420, 200, 20));
-
-        platforms.add(
-                new PlatformData(
-                        250, 1300, 180, 20));
-
-        // =========================
-        // WALLS
-        // =========================
-
-        platforms.add(
-                new PlatformData(
-                        0, 0, 20, 1800));
-
-        platforms.add(
-                new PlatformData(
-                        780, 0, 20, 1800));
-
-        // =========================
-        // BOTTOM FLOOR
-        // =========================
-
-        platforms.add(
-                new PlatformData(
-                        0, 1780, 800, 20));
+        return map;
     }
 
     // =====================================================
@@ -198,14 +125,6 @@ public class GameServer {
         Thread gameThread =
                 new Thread(() -> {
 
-                    /*
-                     * Dùng deadline tuyệt đối thay vì:
-                     *
-                     *     tick();
-                     *     sleep(16.666ms);
-                     *
-                     * Cách đó sẽ gây drift.
-                     */
                     long nextTickTime =
                             System.nanoTime();
 
@@ -241,12 +160,6 @@ public class GameServer {
 
                         } else {
 
-                            /*
-                             * Server đang chậm hơn timeline
-                             * thực tế.
-                             *
-                             * Không chạy bù hàng loạt tick.
-                             */
                             nextTickTime =
                                     System.nanoTime();
                         }
@@ -271,33 +184,8 @@ public class GameServer {
     // GAME TICK
     // =====================================================
 
-    /**
-     * Chạy một logical game tick.
-     *
-     * Quan trọng:
-     *
-     * Không còn xử lý toàn bộ players global.
-     *
-     * Thay vào đó:
-     *
-     *     GameServer
-     *          |
-     *          +-- Room A
-     *          |     +-- Player
-     *          |     +-- Player
-     *          |
-     *          +-- Room B
-     *                +-- Player
-     *
-     * Chỉ room đã STARTED mới được simulation.
-     */
     private void tick() {
 
-        /*
-         * Một global 60 TPS loop duy nhất.
-         *
-         * Không tạo thread riêng cho từng room.
-         */
         for (Room room
                 : roomManager.getRooms()) {
 
@@ -306,67 +194,31 @@ public class GameServer {
                 continue;
             }
 
-            /*
-             * Room có logical timeline riêng.
-             *
-             * Room mới START_GAME sẽ bắt đầu:
-             *
-             *     tick = 1
-             *
-             * ở game tick đầu tiên.
-             */
             long roomTick =
                     room.incrementTick();
 
-            /*
-             * =================================================
-             * 1. PROCESS INPUT
-             * =================================================
-             */
             for (PlayerSession player
                     : room.getPlayers()) {
 
                 player.processQueuedInputs();
             }
 
-            /*
-             * =================================================
-             * 2. JUMP CHARGE
-             * =================================================
-             */
             for (PlayerSession player
                     : room.getPlayers()) {
 
                 player.tickCharge();
             }
 
-            /*
-             * =================================================
-             * 3. PHYSICS
-             * =================================================
-             *
-             * Giữ nguyên PhysicsEngine hiện tại.
-             */
             for (PlayerSession player
                     : room.getPlayers()) {
 
                 physicsEngine.tick(
                         player.getPlayerState(),
-                        platforms,
+                        map,
                         player.isMovingLeft(),
                         player.isMovingRight());
             }
 
-            /*
-             * =================================================
-             * 4. NETWORK SNAPSHOT
-             * =================================================
-             *
-             * 60 TPS simulation
-             * 20 snapshots / second
-             *
-             * => mỗi 3 tick gửi snapshot.
-             */
             if (roomTick
                     % GameConfig.SNAPSHOT_INTERVAL
                     == 0) {
@@ -380,47 +232,15 @@ public class GameServer {
     // MULTIPLAYER BROADCAST
     // =====================================================
 
-    /**
-     * Broadcast authoritative snapshot của MỘT room.
-     *
-     * Tuyệt đối không gửi player của room này
-     * sang room khác.
-     */
     private void broadcastStates(
             Room room) {
 
-        /*
-         * Không broadcast room đã empty.
-         */
         if (room == null
                 || room.isEmpty()) {
 
             return;
         }
 
-        /*
-         * Snapshot format:
-         *
-         * WORLD_STATE
-         * |TICK|123
-         *
-         * |PLAYER|
-         * id
-         * sequence
-         * x
-         * y
-         * velocityX
-         * velocityY
-         * onGround
-         * chargingJump
-         * chargingUp
-         * maxChargeTimer
-         * hasSelectedDirection
-         * jumpPower
-         * facingDirection
-         * movingLeft
-         * movingRight
-         */
         StringBuilder message =
                 new StringBuilder();
 
@@ -432,9 +252,6 @@ public class GameServer {
         message.append(
                 room.getCurrentTick());
 
-        /*
-         * Chỉ lấy player thuộc room này.
-         */
         for (PlayerSession player
                 : room.getPlayers()) {
 
@@ -443,23 +260,16 @@ public class GameServer {
 
             message.append("|PLAYER|");
 
-            // playerId
             message.append(
                     state.getPlayerId());
 
             message.append("|");
 
-            /*
-             * lastProcessedInput
-             *
-             * Client dùng cho reconciliation.
-             */
             message.append(
                     player.getLastProcessedInput());
 
             message.append("|");
 
-            // Position
             message.append(
                     state.getX());
 
@@ -470,7 +280,6 @@ public class GameServer {
 
             message.append("|");
 
-            // Velocity
             message.append(
                     state.getVelocityX());
 
@@ -481,59 +290,41 @@ public class GameServer {
 
             message.append("|");
 
-            // Ground state
             message.append(
                     state.isOnGround());
 
             message.append("|");
 
-            // Jump charge state
             message.append(
                     state.isChargingJump());
 
             message.append("|");
 
-            /*
-             * Charge direction:
-             *
-             * true  = đang tăng jumpPower
-             * false = đang giữ MAX / giảm
-             */
             message.append(
                     state.isChargingUp());
 
             message.append("|");
 
-            // Thời gian đã giữ MAX
             message.append(
                     state.getMaxChargeTimer());
 
             message.append("|");
 
-            /*
-             * Người chơi đã chọn hướng
-             * trong cú jump hiện tại chưa.
-             */
             message.append(
                     state.hasSelectedDirection());
 
             message.append("|");
 
-            // Current jump power
             message.append(
                     state.getJumpPower());
 
             message.append("|");
 
-            // Facing direction
             message.append(
                     state.getFacingDirection());
 
             message.append("|");
 
-            /*
-             * Movement input state.
-             */
             message.append(
                     player.isMovingLeft());
 
@@ -546,11 +337,6 @@ public class GameServer {
         String finalMessage =
                 message.toString();
 
-        /*
-         * =====================================================
-         * SEND ONLY TO THIS ROOM
-         * =====================================================
-         */
         for (PlayerSession player
                 : room.getPlayers()) {
 

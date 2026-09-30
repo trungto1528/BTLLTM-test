@@ -1,9 +1,12 @@
 package com.test.map;
 
+import org.springframework.stereotype.Component;
+
 import com.test.common.map.MapCellData;
 import com.test.common.map.MapCellType;
 import com.test.common.map.MapData;
 
+@Component
 public class GameMap {
 
     public static final int WIDTH = 800;
