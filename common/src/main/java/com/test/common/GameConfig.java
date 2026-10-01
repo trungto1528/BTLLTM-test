@@ -6,17 +6,6 @@ public final class GameConfig {
     }
 
     // =========================
-    // MAP
-    // =========================
-
-    public static final double MAP_WIDTH = 800;
-    public static final double MAP_HEIGHT = 6000;
-    public static final double CELL_SIZE = 40;
-
-    public static final double WALL_WIDTH = 40;
-
-
-    // =========================
     // PLAYER
     // =========================
 

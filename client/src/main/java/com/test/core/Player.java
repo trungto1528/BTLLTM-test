@@ -1,5 +1,7 @@
 package com.test.core;
 
+import com.test.common.GameConfig;
+
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 
@@ -12,8 +14,8 @@ public class Player extends Rectangle {
             double y) {
 
         super(
-                30,
-                30);
+                GameConfig.PLAYER_WIDTH,
+                GameConfig.PLAYER_HEIGHT);
 
         setFill(
                 Color.BLUE);
