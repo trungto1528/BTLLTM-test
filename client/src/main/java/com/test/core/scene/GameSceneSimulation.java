@@ -203,13 +203,11 @@ public class GameSceneSimulation {
         }
 
         replayFromServerState(
-                serverTick,
-                snapshot);
+                serverTick);
     }
 
     private void replayFromServerState(
-            long serverTick,
-            GameSceneNetwork.RemoteSnapshot snapshot) {
+            long serverTick) {
 
         long targetClientTick =
                 clientTick;
@@ -275,9 +273,6 @@ public class GameSceneSimulation {
             return;
         }
 
-        GameSceneNetwork.RemoteSnapshot snapshot =
-                pendingServerSnapshot;
-
         long serverTick =
                 pendingServerTick;
 
@@ -285,8 +280,7 @@ public class GameSceneSimulation {
         pendingServerTick = -1;
 
         replayFromServerState(
-                serverTick,
-                snapshot);
+                serverTick);
     }
 
     private void resetLocalRenderInterpolation() {

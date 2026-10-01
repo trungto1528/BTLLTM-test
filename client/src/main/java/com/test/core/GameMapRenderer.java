@@ -5,7 +5,6 @@ import java.util.Collections;
 import java.util.List;
 
 import com.test.common.map.MapCellData;
-import com.test.common.map.MapCellType;
 import com.test.common.map.MapData;
 
 import javafx.scene.Node;

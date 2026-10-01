@@ -90,26 +90,41 @@ public class MapData {
                             "cells must not contain null");
                 }
 
-                if (!isInside(
-                        cell.getGridX(),
-                        cell.getGridY())) {
+                int gridX = cell.getGridX();
+                int gridY = cell.getGridY();
 
+                boolean inside =
+                        gridX >= 0
+                        && gridX < width / cellSize
+                        && gridY >= 0
+                        && gridY < height / cellSize;
+
+                if (!inside) {
                     throw new IllegalArgumentException(
                             "Cell is outside map bounds: "
-                                    + cell.getGridX()
+                                    + gridX
                                     + ", "
-                                    + cell.getGridY());
+                                    + gridY);
                 }
 
-                if (getCell(
-                        cell.getGridX(),
-                        cell.getGridY()) != null) {
+                boolean duplicate = false;
 
+                for (MapCellData existingCell : this.cells) {
+
+                    if (existingCell.getGridX() == gridX
+                            && existingCell.getGridY() == gridY) {
+
+                        duplicate = true;
+                        break;
+                    }
+                }
+
+                if (duplicate) {
                     throw new IllegalArgumentException(
                             "Duplicate map cell: "
-                                    + cell.getGridX()
+                                    + gridX
                                     + ", "
-                                    + cell.getGridY());
+                                    + gridY);
                 }
 
                 this.cells.add(cell);

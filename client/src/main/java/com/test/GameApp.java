@@ -410,8 +410,7 @@ public class GameApp extends Application {
                 if (message.startsWith(
                                 "ROOM_LEFT|")) {
 
-                        handleRoomLeft(
-                                        message);
+                        handleRoomLeft();
 
                         return;
                 }
@@ -452,7 +451,6 @@ public class GameApp extends Application {
                         System.err.println(
                                         message);
 
-                        return;
                 }
         }
 
@@ -743,8 +741,6 @@ public class GameApp extends Application {
 
                 int maxPlayers;
 
-                String mapId = parts[5];
-
                 try {
 
                         currentPlayers = Integer.parseInt(
@@ -815,8 +811,7 @@ public class GameApp extends Application {
         // ROOM LEFT
         // =====================================================
 
-        private void handleRoomLeft(
-                        String message) {
+        private void handleRoomLeft() {
 
                 /*
                  * Chỉ client vừa gửi LEAVE_ROOM

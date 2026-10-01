@@ -13,16 +13,12 @@ public class CreateRoomView extends VBox {
 
     private static final String DEFAULT_MAP_ID = "map01";
 
-    private final GameApp app;
-
     private final Label statusLabel;
     private final Label mapLabel;
     private final Button createButton;
     private final Button backButton;
 
     public CreateRoomView(GameApp app) {
-
-        this.app = app;
 
         setSpacing(20);
         setAlignment(Pos.CENTER);
