@@ -1,12 +1,10 @@
 package com.test.core;
 
-import java.util.List;
-
 import com.test.common.GameConfig;
 import com.test.common.InputCommand;
 import com.test.common.PhysicsEngine;
-import com.test.common.PlatformData;
 import com.test.common.PlayerState;
+import com.test.common.map.MapData;
 
 public class ClientPlayerController {
 
@@ -34,10 +32,16 @@ public class ClientPlayerController {
         state =
                 new PlayerState(playerId);
 
-        state.setX(180);
-        state.setY(1620);
+        /*
+         * Không hard-code spawn tại đây.
+         *
+         * Spawn thực tế được lấy từ MapData
+         * sau khi client tải map từ server.
+         */
+        state.setX(0);
+        state.setY(0);
 
-        state.setOnGround(true);
+        state.setOnGround(false);
 
         state.setFacingDirection(1);
 
@@ -440,12 +444,16 @@ public class ClientPlayerController {
      *
      * Simulation:
      *
-     *     60 TPS
+     *     40 TPS
      *
      * Không phụ thuộc FPS render.
      */
     public void tick(
-            List<PlatformData> platforms) {
+            MapData map) {
+
+        if (map == null) {
+            return;
+        }
 
         /*
          * Charge trước physics.
@@ -456,10 +464,12 @@ public class ClientPlayerController {
          * Physics sử dụng:
          *
          *     GameConfig.TICK_DT
+         *
+         * và chính MapData mà server sử dụng.
          */
         physicsEngine.tick(
                 state,
-                platforms,
+                map,
                 movingLeft,
                 movingRight);
     }
@@ -595,10 +605,5 @@ public class ClientPlayerController {
             state.setJumpPower(0);
         }
 
-        /*
-         * Nếu cả LEFT và RIGHT cùng đang được giữ,
-         * PhysicsEngine sẽ xử lý trạng thái này
-         * theo logic authoritative hiện tại.
-         */
     }
 }

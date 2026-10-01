@@ -1,7 +1,17 @@
 package com.test;
 
-import com.test.core.GameScene;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.Arrays;
+import java.util.List;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.test.common.map.MapInfo;
 import com.test.core.GameWebSocketClient;
+import com.test.core.scene.GameScene;
 import com.test.ui.CreateRoomView;
 import com.test.ui.FindRoomView;
 import com.test.ui.JoinRoomView;
@@ -20,1207 +30,1077 @@ import javafx.util.Duration;
 
 public class GameApp extends Application {
 
-    private Stage stage;
+        private static final String MAP_API_URL = "http://localhost:8080/api/maps";
 
-    /*
-     * Chỉ sử dụng MỘT Scene duy nhất.
-     */
-    private Scene scene;
+        private final HttpClient httpClient = HttpClient.newHttpClient();
 
-    private GameWebSocketClient network;
+        private final ObjectMapper objectMapper = new ObjectMapper();
 
-    private MainMenuView mainMenu;
-    private CreateRoomView createRoom;
-    private JoinRoomView joinRoom;
-    private FindRoomView findRoom;
-    private LobbyView lobby;
+        private Stage stage;
 
-    /*
-     * GameScene chỉ được tạo khi server gửi
-     * GAME_STARTED.
-     */
-    private GameScene gameScene;
+        private Scene scene;
 
-    /*
-     * Container dùng khi đang chơi game.
-     *
-     * GameScene nằm dưới.
-     * Toast thông báo nằm trên.
-     */
-    private StackPane gameContainer;
+        private GameWebSocketClient network;
 
-    /*
-     * Toast thông báo người chơi rời trận.
-     */
-    private Label departureToast;
+        private MainMenuView mainMenu;
+        private CreateRoomView createRoom;
+        private JoinRoomView joinRoom;
+        private FindRoomView findRoom;
+        private LobbyView lobby;
 
-    /*
-     * Timer tự ẩn toast.
-     */
-    private PauseTransition departureToastTimer;
+        private GameScene gameScene;
 
-    /*
-     * Player ID do server cấp.
-     */
-    private String localPlayerId;
+        private StackPane gameContainer;
 
-    /*
-     * Room hiện tại.
-     */
-    private String currentRoomId;
+        private Label departureToast;
 
-    /*
-     * Có phải host hay không.
-     */
-    private boolean currentHost;
+        private PauseTransition departureToastTimer;
 
-    // =====================================================
-    // START
-    // =====================================================
+        private String localPlayerId;
 
-    @Override
-    public void start(Stage stage) {
+        private String currentRoomId;
 
-        this.stage = stage;
+        private String currentMapId;
 
-        stage.setTitle(
-                "Jump King Multiplayer");
+        private boolean currentHost;
 
-        stage.setWidth(1000);
-        stage.setHeight(700);
-        stage.setResizable(false);
+        // =====================================================
+        // START
+        // =====================================================
 
-        // =================================================
-        // NETWORK
-        // =================================================
+        @Override
+        public void start(Stage stage) {
 
-        network =
-                new GameWebSocketClient();
+                this.stage = stage;
 
-        network.setMessageHandler(
-                this::handleServerMessage);
+                stage.setTitle(
+                                "Jump King Multiplayer");
 
-        network.connect();
+                stage.setWidth(1000);
+                stage.setHeight(700);
+                stage.setResizable(false);
 
-        // =================================================
-        // UI
-        // =================================================
+                // =================================================
+                // NETWORK
+                // =================================================
 
-        mainMenu =
-                new MainMenuView(this);
+                network = new GameWebSocketClient();
 
-        createRoom =
-                new CreateRoomView(this);
+                network.setMessageHandler(
+                                this::handleServerMessage);
 
-        joinRoom =
-                new JoinRoomView(this);
+                network.connect();
 
-        findRoom =
-                new FindRoomView(this);
+                // =================================================
+                // UI
+                // =================================================
 
-        lobby =
-                new LobbyView(this);
+                mainMenu = new MainMenuView(this);
 
-        // =================================================
-        // SINGLE SCENE
-        // =================================================
+                createRoom = new CreateRoomView(this);
 
-        scene =
-                new Scene(mainMenu);
+                joinRoom = new JoinRoomView(this);
 
-        stage.setScene(scene);
+                findRoom = new FindRoomView(this);
 
-        stage.show();
+                lobby = new LobbyView(this);
 
-        mainMenu.requestFocus();
-    }
+                // =================================================
+                // SINGLE SCENE
+                // =================================================
 
-    // =====================================================
-    // GETTERS
-    // =====================================================
+                scene = new Scene(mainMenu);
 
-    public Stage getStage() {
-        return stage;
-    }
+                stage.setScene(scene);
 
-    public GameWebSocketClient getNetwork() {
-        return network;
-    }
+                stage.show();
 
-    public String getLocalPlayerId() {
-        return localPlayerId;
-    }
-
-    public String getCurrentRoomId() {
-        return currentRoomId;
-    }
-
-    public boolean isCurrentHost() {
-        return currentHost;
-    }
-
-    // =====================================================
-    // MAIN MENU
-    // =====================================================
-
-    public void showMainMenu() {
-
-        if (scene == null) {
-            return;
+                mainMenu.requestFocus();
         }
 
-        scene.setRoot(mainMenu);
+        // =====================================================
+        // GETTERS
+        // =====================================================
 
-        mainMenu.requestFocus();
-    }
-
-    // =====================================================
-    // CREATE ROOM
-    // =====================================================
-
-    public void showCreateRoom() {
-
-        createRoom.reset();
-
-        scene.setRoot(createRoom);
-
-        createRoom.requestFocus();
-    }
-
-    // =====================================================
-    // JOIN ROOM
-    // =====================================================
-
-    public void showJoinRoom() {
-
-        joinRoom.reset();
-
-        scene.setRoot(joinRoom);
-
-        joinRoom.requestFocus();
-    }
-
-    // =====================================================
-    // FIND ROOM
-    // =====================================================
-
-    public void showFindRoom() {
-
-        scene.setRoot(findRoom);
-
-        findRoom.onShow();
-
-        findRoom.requestFocus();
-    }
-
-    // =====================================================
-    // LOBBY
-    // =====================================================
-
-    public void showLobby(
-            String roomId,
-            boolean host) {
-
-        currentRoomId =
-                roomId;
-
-        currentHost =
-                host;
-
-        lobby.setRoomId(
-                roomId);
-
-        lobby.setHost(
-                host);
-
-        scene.setRoot(lobby);
-
-        lobby.requestFocus();
-    }
-
-    // =====================================================
-    // FIND ROOMS
-    // =====================================================
-
-    public void findRooms() {
-
-        network.send(
-                "FIND_ROOMS");
-    }
-
-    // =====================================================
-    // CREATE
-    // =====================================================
-
-    public void createRoom() {
-
-        network.send(
-                "CREATE_ROOM");
-    }
-
-    // =====================================================
-    // JOIN
-    // =====================================================
-
-    public void joinRoom(
-            String roomId) {
-
-        if (roomId == null
-                || roomId.isBlank()) {
-
-            return;
+        public Stage getStage() {
+                return stage;
         }
 
-        String normalizedRoomId =
-                roomId.trim()
-                        .toUpperCase();
-
-        network.send(
-                "JOIN_ROOM|"
-                        + normalizedRoomId);
-    }
-
-    // =====================================================
-    // START GAME
-    // =====================================================
-
-    public void startGame() {
-
-        /*
-         * Client không tự chuyển GameScene.
-         *
-         * Chờ GAME_STARTED từ server.
-         */
-        network.send(
-                "START_GAME");
-
-        lobby.setStartingStatus();
-    }
-
-    // =====================================================
-    // LEAVE ROOM
-    // =====================================================
-
-    public void leaveRoom() {
-
-        network.send(
-                "LEAVE_ROOM");
-
-        currentRoomId =
-                null;
-
-        currentHost =
-                false;
-
-        showMainMenu();
-    }
-
-    // =====================================================
-    // SERVER MESSAGE
-    // =====================================================
-
-    private void handleServerMessage(
-            String message) {
-
-        if (message == null
-                || message.isBlank()) {
-
-            return;
+        public GameWebSocketClient getNetwork() {
+                return network;
         }
 
-        System.out.println(
-                "[APP] "
-                        + message);
-
-        // =================================================
-        // WELCOME
-        // =================================================
-
-        if (message.startsWith(
-                "WELCOME|")) {
-
-            handleWelcome(
-                    message);
-
-            return;
+        public String getLocalPlayerId() {
+                return localPlayerId;
         }
 
-        // =================================================
-        // ROOM CREATED
-        // =================================================
-
-        if (message.startsWith(
-                "ROOM_CREATED|")) {
-
-            handleRoomCreated(
-                    message);
-
-            return;
+        public String getCurrentRoomId() {
+                return currentRoomId;
         }
 
-        // =================================================
-        // ROOM JOINED
-        // =================================================
-
-        if (message.startsWith(
-                "ROOM_JOINED|")) {
-
-            handleRoomJoined(
-                    message);
-
-            return;
+        public String getCurrentMapId() {
+                return currentMapId;
         }
 
-        // =================================================
-        // ROOM STATE
-        // =================================================
-
-        if (message.startsWith(
-                "ROOM_STATE|")) {
-
-            handleRoomState(
-                    message);
-
-            return;
+        public boolean isCurrentHost() {
+                return currentHost;
         }
 
-        // =================================================
-        // ROOM LIST
-        // =================================================
+        // =====================================================
+        // MAIN MENU
+        // =====================================================
 
-        if (message.startsWith(
-                "ROOM_LIST|")) {
+        public void showMainMenu() {
 
-            handleRoomList(
-                    message);
+                if (scene == null) {
+                        return;
+                }
 
-            return;
+                scene.setRoot(mainMenu);
+
+                mainMenu.requestFocus();
         }
 
-        // =================================================
-        // ROOM LIST END
-        // =================================================
+        // =====================================================
+        // CREATE ROOM
+        // =====================================================
 
-        if ("ROOM_LIST_END".equals(message)) {
+        public void showCreateRoom() {
 
-            Platform.runLater(
-                    () -> findRoom.finishLoading());
+                createRoom.reset();
 
-            return;
+                scene.setRoot(createRoom);
+
+                createRoom.requestFocus();
         }
 
-        // =================================================
-        // ROOM ERROR
-        // =================================================
+        // =====================================================
+        // JOIN ROOM
+        // =====================================================
 
-        if (message.startsWith(
-                "ROOM_ERROR|")) {
+        public void showJoinRoom() {
 
-            handleRoomError(
-                    message);
+                joinRoom.reset();
 
-            return;
+                scene.setRoot(joinRoom);
+
+                joinRoom.requestFocus();
         }
 
-        // =================================================
-        // ROOM LEFT
-        // =================================================
+        // =====================================================
+        // FIND ROOM
+        // =====================================================
 
-        if (message.startsWith(
-                "ROOM_LEFT|")) {
+        public void showFindRoom() {
 
-            handleRoomLeft(
-                    message);
+                scene.setRoot(findRoom);
 
-            return;
+                findRoom.onShow();
+
+                findRoom.requestFocus();
         }
 
-        // =================================================
-        // PLAYER LEFT
-        // =================================================
+        // =====================================================
+        // LOBBY
+        // =====================================================
 
-        if (message.startsWith(
-                "PLAYER_LEFT|")) {
+        public void showLobby(
+                        String roomId,
+                        boolean host) {
 
-            handlePlayerLeft(
-                    message);
+                currentRoomId = roomId;
 
-            return;
-        }
+                currentHost = host;
 
-        // =================================================
-        // GAME STARTED
-        // =================================================
-
-        if (message.startsWith(
-                "GAME_STARTED|")) {
-
-            handleGameStarted(
-                    message);
-
-            return;
-        }
-
-        // =================================================
-        // CONNECTION ERROR
-        // =================================================
-
-        if (message.startsWith(
-                "CONNECTION_ERROR|")) {
-
-            System.err.println(
-                    message);
-
-            return;
-        }
-    }
-
-    // =====================================================
-    // WELCOME
-    // =====================================================
-
-    private void handleWelcome(
-            String message) {
-
-        String playerId =
-                message.substring(
-                        "WELCOME|".length());
-
-        localPlayerId =
-                playerId;
-
-        System.out.println(
-                "Local player ID: "
-                        + localPlayerId);
-    }
-
-    // =====================================================
-    // ROOM CREATED
-    // =====================================================
-
-    private void handleRoomCreated(
-            String message) {
-
-        String roomId =
-                message.substring(
-                        "ROOM_CREATED|".length());
-
-        currentRoomId =
-                roomId;
-
-        currentHost =
-                true;
-
-        showLobby(
-                roomId,
-                true);
-    }
-
-    // =====================================================
-    // ROOM JOINED
-    // =====================================================
-
-    private void handleRoomJoined(
-            String message) {
-
-        String roomId =
-                message.substring(
-                        "ROOM_JOINED|".length());
-
-        currentRoomId =
-                roomId;
-
-        /*
-         * Chưa tự đoán host.
-         *
-         * ROOM_STATE sẽ cung cấp HOST_ID.
-         */
-        currentHost =
-                false;
-
-        showLobby(
-                roomId,
-                false);
-    }
-
-    // =====================================================
-    // ROOM STATE
-    // =====================================================
-
-    private void handleRoomState(
-            String message) {
-
-        /*
-         * Protocol:
-         *
-         * ROOM_STATE|roomId|count|max|hostId
-         */
-
-        String[] parts =
-                message.split("\\|");
-
-        if (parts.length < 5) {
-
-            System.err.println(
-                    "Invalid ROOM_STATE: "
-                            + message);
-
-            return;
-        }
-
-        String roomId =
-                parts[1];
-
-        int playerCount;
-
-        int maxPlayers;
-
-        String hostId =
-                parts[4];
-
-        try {
-
-            playerCount =
-                    Integer.parseInt(
-                            parts[2]);
-
-            maxPlayers =
-                    Integer.parseInt(
-                            parts[3]);
-
-        } catch (NumberFormatException e) {
-
-            System.err.println(
-                    "Invalid ROOM_STATE numbers: "
-                            + message);
-
-            return;
-        }
-
-        /*
-         * Nếu đang ở một room khác thì
-         * không nhận ROOM_STATE đó.
-         */
-        if (currentRoomId != null
-                && !currentRoomId.equals(roomId)) {
-
-            return;
-        }
-
-        currentRoomId =
-                roomId;
-
-        currentHost =
-                localPlayerId != null
-                        && localPlayerId.equals(
-                                hostId);
-
-        /*
-         * QUAN TRỌNG:
-         *
-         * Nếu đang trong GameScene thì
-         * KHÔNG được đưa client về Lobby.
-         *
-         * ROOM_STATE lúc này chỉ dùng để
-         * cập nhật currentHost.
-         */
-        if (gameScene != null
-                && scene.getRoot()
-                        == gameContainer) {
-
-            return;
-        }
-
-        /*
-         * Nếu chưa ở Lobby thì vào Lobby.
-         */
-        if (!isLobbyShowing()) {
-
-            final String finalRoomId =
-                    roomId;
-
-            final int finalPlayerCount =
-                    playerCount;
-
-            final int finalMaxPlayers =
-                    maxPlayers;
-
-            final boolean finalHost =
-                    currentHost;
-
-            Platform.runLater(
-                    () -> {
-
-                        showLobby(
-                                finalRoomId,
-                                finalHost);
-
-                        lobby.setPlayers(
-                                finalPlayerCount,
-                                finalMaxPlayers);
-
-                        lobby.setHost(
-                                finalHost);
-                    });
-
-        } else {
-
-            final int finalPlayerCount =
-                    playerCount;
-
-            final int finalMaxPlayers =
-                    maxPlayers;
-
-            final boolean finalHost =
-                    currentHost;
-
-            Platform.runLater(
-                    () -> {
-
-                        lobby.setRoomId(
+                lobby.setRoomId(
                                 roomId);
 
-                        lobby.setPlayers(
-                                finalPlayerCount,
-                                finalMaxPlayers);
+                lobby.setHost(
+                                host);
 
-                        lobby.setHost(
-                                finalHost);
-                    });
-        }
-    }
+                scene.setRoot(lobby);
 
-    // =====================================================
-    // ROOM LIST
-    // =====================================================
+                /*
+                 * Lobby cần danh sách map.
+                 *
+                 * Gọi REST API ngay khi vào Lobby.
+                 */
+                loadMaps();
 
-    private void handleRoomList(
-            String message) {
-
-        /*
-         * ROOM_LIST|EMPTY
-         */
-        if ("ROOM_LIST|EMPTY".equals(message)) {
-
-            Platform.runLater(
-                    () -> findRoom.showEmpty());
-
-            return;
+                lobby.requestFocus();
         }
 
-        /*
-         * ROOM_LIST|roomId|currentPlayers|maxPlayers|OPEN
-         */
-        String[] parts =
-                message.split("\\|");
+        // =====================================================
+        // LOAD MAPS
+        // =====================================================
 
-        if (parts.length < 5) {
+        private void loadMaps() {
 
-            System.err.println(
-                    "Invalid ROOM_LIST: "
-                            + message);
+                HttpRequest request = HttpRequest.newBuilder()
+                                .uri(URI.create(
+                                                MAP_API_URL))
+                                .GET()
+                                .build();
 
-            return;
+                httpClient.sendAsync(
+                                request,
+                                HttpResponse.BodyHandlers.ofString())
+                                .thenAccept(
+                                                response -> {
+
+                                                        if (response.statusCode() != 200) {
+
+                                                                Platform.runLater(
+                                                                                () -> lobby.setError(
+                                                                                                "Cannot load maps: HTTP "
+                                                                                                                + response.statusCode()));
+
+                                                                return;
+                                                        }
+
+                                                        try {
+
+                                                                MapInfo[] maps = objectMapper.readValue(
+                                                                                response.body(),
+                                                                                MapInfo[].class);
+
+                                                                List<MapInfo> mapList = Arrays.asList(
+                                                                                maps);
+
+                                                                Platform.runLater(
+                                                                                () -> {
+
+                                                                                        lobby.setMaps(
+                                                                                                        mapList);
+
+                                                                                        lobby.setMap(
+                                                                                                        currentMapId);
+
+                                                                                        lobby.setHost(
+                                                                                                        currentHost);
+                                                                                });
+
+                                                        } catch (JsonProcessingException exception) {
+
+                                                                Platform.runLater(
+                                                                                () -> lobby.setError(
+                                                                                                "Cannot read map list"));
+                                                        }
+                                                })
+                                .exceptionally(
+                                                exception -> {
+
+                                                        Platform.runLater(
+                                                                        () -> lobby.setError(
+                                                                                        "Cannot connect to map server"));
+
+                                                        return null;
+                                                });
         }
 
-        String roomId =
-                parts[1];
+        // =====================================================
+        // FIND ROOMS
+        // =====================================================
 
-        int currentPlayers;
+        public void findRooms() {
 
-        int maxPlayers;
-
-        try {
-
-            currentPlayers =
-                    Integer.parseInt(
-                            parts[2]);
-
-            maxPlayers =
-                    Integer.parseInt(
-                            parts[3]);
-
-        } catch (NumberFormatException e) {
-
-            System.err.println(
-                    "Invalid ROOM_LIST numbers: "
-                            + message);
-
-            return;
+                network.send(
+                                "FIND_ROOMS");
         }
 
-        final int finalCurrentPlayers =
-                currentPlayers;
+        // =====================================================
+        // CREATE
+        // =====================================================
 
-        final int finalMaxPlayers =
-                maxPlayers;
+        public void createRoom() {
 
-        Platform.runLater(
-                () -> findRoom.addRoom(
-                        roomId,
-                        finalCurrentPlayers,
-                        finalMaxPlayers));
-    }
-
-    // =====================================================
-    // ROOM ERROR
-    // =====================================================
-
-    private void handleRoomError(
-            String message) {
-
-        String error =
-                message.substring(
-                        "ROOM_ERROR|".length());
-
-        System.err.println(
-                "Room error: "
-                        + error);
-
-        Platform.runLater(
-                () -> {
-
-                    joinRoom.setError(
-                            error);
-
-                    if (isLobbyShowing()) {
-
-                        lobby.setError(
-                                error);
-                    }
-
-                    findRoom.setError(
-                            error);
-                });
-    }
-
-    // =====================================================
-    // ROOM LEFT
-    // =====================================================
-
-    private void handleRoomLeft(
-            String message) {
-
-        /*
-         * Chỉ client vừa gửi LEAVE_ROOM
-         * mới nhận ROOM_LEFT.
-         */
-        currentRoomId =
-                null;
-
-        currentHost =
-                false;
-
-        gameScene =
-                null;
-
-        gameContainer =
-                null;
-
-        hideDepartureToast();
-
-        network.setGameScene(
-                null);
-
-        Platform.runLater(
-                this::showMainMenu);
-    }
-
-    // =====================================================
-    // PLAYER LEFT
-    // =====================================================
-
-    private void handlePlayerLeft(
-            String message) {
-
-        /*
-         * Protocol:
-         *
-         * PLAYER_LEFT|
-         * roomId|
-         * playerId|
-         * wasHost|
-         * newHostId
-         */
-
-        String[] parts =
-                message.split("\\|");
-
-        if (parts.length < 5) {
-
-            System.err.println(
-                    "Invalid PLAYER_LEFT: "
-                            + message);
-
-            return;
+                createRoom("map01");
         }
 
-        String roomId =
-                parts[1];
+        public void createRoom(
+                        String mapId) {
 
-        String playerId =
-                parts[2];
+                if (mapId == null
+                                || mapId.isBlank()) {
 
-        boolean wasHost =
-                Boolean.parseBoolean(
-                        parts[3]);
+                        mapId = "map01";
+                }
 
-        String newHostId =
-                parts[4];
-
-        /*
-         * =================================================
-         * CHỈ XỬ LÝ NGƯỜI CÙNG ROOM
-         * =================================================
-         */
-        if (currentRoomId == null
-                || !currentRoomId.equals(roomId)) {
-
-            return;
+                network.send(
+                                "CREATE_ROOM|"
+                                                + mapId);
         }
 
-        /*
-         * Nếu đang trong game:
-         *
-         * - không về Lobby
-         * - không dừng trận
-         * - chỉ hiện thông báo
-         */
-        if (gameScene != null
-                && scene.getRoot()
-                        == gameContainer) {
+        // =====================================================
+        // CHANGE MAP
+        // =====================================================
 
-            /*
-             * Cập nhật host local.
-             *
-             * Nếu mình là host mới thì
-             * currentHost = true.
-             */
-            currentHost =
-                    localPlayerId != null
-                            && localPlayerId.equals(
-                                    newHostId);
+        public void changeMap(
+                        String mapId) {
 
-            String playerName =
-                    shortPlayerId(
-                            playerId);
+                if (!currentHost) {
+                        return;
+                }
 
-            final String notification;
+                if (currentRoomId == null
+                                || currentRoomId.isBlank()) {
 
-            if (wasHost) {
+                        return;
+                }
 
-                notification =
-                        "Host "
-                                + playerName
-                                + " đã rời trận. "
-                                + "Host mới: "
-                                + shortPlayerId(
-                                        newHostId);
+                if (mapId == null
+                                || mapId.isBlank()) {
 
-            } else {
+                        return;
+                }
 
-                notification =
-                        "Người chơi "
-                                + playerName
-                                + " đã rời trận.";
-            }
-
-            showDepartureToast(
-                    notification);
-
-            return;
+                network.send(
+                                "CHANGE_MAP|"
+                                                + mapId);
         }
 
-        /*
-         * Nếu chưa vào game thì chỉ cập nhật
-         * host hiện tại.
-         *
-         * ROOM_STATE sẽ cập nhật số người.
-         */
-        currentHost =
-                localPlayerId != null
-                        && localPlayerId.equals(
-                                newHostId);
-    }
+        // =====================================================
+        // JOIN
+        // =====================================================
 
-    // =====================================================
-    // GAME STARTED
-    // =====================================================
+        public void joinRoom(
+                        String roomId) {
 
-    private void handleGameStarted(
-            String message) {
+                if (roomId == null
+                                || roomId.isBlank()) {
 
-        /*
-         * Protocol:
-         *
-         * GAME_STARTED|ABCDE
-         */
+                        return;
+                }
 
-        String roomId =
-                message.substring(
-                        "GAME_STARTED|".length());
+                String normalizedRoomId = roomId.trim()
+                                .toUpperCase();
 
-        /*
-         * Chỉ chuyển game nếu đúng room
-         * hiện tại.
-         */
-        if (currentRoomId == null
-                || !currentRoomId.equals(
-                        roomId)) {
-
-            return;
+                network.send(
+                                "JOIN_ROOM|"
+                                                + normalizedRoomId);
         }
 
-        System.out.println(
-                "Game started: "
-                        + roomId);
+        // =====================================================
+        // START GAME
+        // =====================================================
 
-        Platform.runLater(
-                this::openGameScene);
-    }
+        public void startGame() {
 
-    // =====================================================
-    // OPEN GAME
-    // =====================================================
+                network.send(
+                                "START_GAME");
 
-    private void openGameScene() {
-
-        /*
-         * Tránh tạo GameScene nhiều lần.
-         */
-        if (gameScene != null) {
-            return;
+                lobby.setStartingStatus();
         }
 
-        gameScene =
-                new GameScene(
-                        network);
+        // =====================================================
+        // LEAVE ROOM
+        // =====================================================
 
-        /*
-         * Truyền player ID server cấp.
-         */
-        if (localPlayerId != null) {
+        public void leaveRoom() {
 
-            gameScene.setLocalPlayerId(
-                    localPlayerId);
+                network.send(
+                                "LEAVE_ROOM");
+
+                currentRoomId = null;
+
+                currentMapId = null;
+
+                currentHost = false;
+
+                showMainMenu();
         }
 
-        /*
-         * WebSocket chuyển WORLD_STATE
-         * vào GameScene.
-         */
-        network.setGameScene(
-                gameScene);
+        // =====================================================
+        // SERVER MESSAGE
+        // =====================================================
 
-        /*
-         * =================================================
-         * GAME CONTAINER
-         * =================================================
-         *
-         * GameScene nằm dưới.
-         * Toast nằm trên.
-         */
-        gameContainer =
-                new StackPane();
+        private void handleServerMessage(
+                        String message) {
 
-        gameContainer.setPrefSize(
-                800,
-                600);
+                if (message == null
+                                || message.isBlank()) {
 
-        gameContainer.getChildren().add(
-                gameScene);
+                        return;
+                }
 
-        // =================================================
-        // DEPARTURE TOAST
-        // =================================================
+                System.out.println(
+                                "[APP] "
+                                                + message);
 
-        departureToast =
-                new Label();
+                if (message.startsWith(
+                                "WELCOME|")) {
 
-        departureToast.setVisible(
-                false);
+                        handleWelcome(
+                                        message);
 
-        departureToast.setManaged(
-                false);
+                        return;
+                }
 
-        departureToast.setMouseTransparent(
-                true);
+                if (message.startsWith(
+                                "ROOM_CREATED|")) {
 
-        departureToast.setWrapText(
-                true);
+                        handleRoomCreated(
+                                        message);
 
-        departureToast.setMaxWidth(
-                420);
+                        return;
+                }
 
-        departureToast.setAlignment(
-                Pos.CENTER_LEFT);
+                if (message.startsWith(
+                                "ROOM_JOINED|")) {
 
-        departureToast.setStyle(
-                "-fx-background-color: rgba(25, 29, 36, 0.94);"
-                        + "-fx-text-fill: white;"
-                        + "-fx-padding: 10 14;"
-                        + "-fx-background-radius: 8;"
-                        + "-fx-border-color: rgba(255,255,255,0.18);"
-                        + "-fx-border-radius: 8;"
-                        + "-fx-font-size: 14px;");
+                        handleRoomJoined(
+                                        message);
 
-        StackPane.setAlignment(
-                departureToast,
-                Pos.BOTTOM_LEFT);
+                        return;
+                }
 
-        /*
-         * Cách mép trái 20px,
-         * cách mép dưới 20px.
-         */
-        StackPane.setMargin(
-                departureToast,
-                new javafx.geometry.Insets(
-                        0,
-                        0,
-                        20,
-                        20));
+                if (message.startsWith(
+                                "ROOM_STATE|")) {
 
-        gameContainer.getChildren().add(
-                departureToast);
+                        handleRoomState(
+                                        message);
 
-        departureToastTimer =
-                new PauseTransition(
-                        Duration.seconds(4));
+                        return;
+                }
 
-        departureToastTimer.setOnFinished(
-                event ->
-                        hideDepartureToast());
+                if (message.startsWith(
+                                "ROOM_LIST|")) {
 
-        // =================================================
-        // START LOOP
-        // =================================================
+                        handleRoomList(
+                                        message);
 
-        gameScene.startLoop();
+                        return;
+                }
 
-        /*
-         * Dùng Scene hiện tại.
-         */
-        scene.setRoot(
-                gameContainer);
+                if ("ROOM_LIST_END".equals(message)) {
 
-        /*
-         * Nhận keyboard input.
-         */
-        gameScene.requestFocus();
-    }
+                        Platform.runLater(
+                                        () -> findRoom.finishLoading());
 
-    // =====================================================
-    // SHOW DEPARTURE TOAST
-    // =====================================================
+                        return;
+                }
 
-    private void showDepartureToast(
-            String message) {
+                if (message.startsWith(
+                                "ROOM_ERROR|")) {
 
-        if (departureToast == null) {
-            return;
+                        handleRoomError(
+                                        message);
+
+                        return;
+                }
+
+                if (message.startsWith(
+                                "ROOM_LEFT|")) {
+
+                        handleRoomLeft();
+
+                        return;
+                }
+
+                if (message.startsWith(
+                                "PLAYER_LEFT|")) {
+
+                        handlePlayerLeft(
+                                        message);
+
+                        return;
+                }
+
+                if (message.startsWith(
+                                "GAME_STARTED|")) {
+
+                        handleGameStarted(
+                                        message);
+
+                        return;
+                }
+
+                if (message.startsWith(
+                                "CONNECTION_ERROR|")) {
+
+                        System.err.println(
+                                        message);
+                }
         }
 
-        Platform.runLater(
-                () -> {
+        // =====================================================
+        // WELCOME
+        // =====================================================
 
-                    departureToast.setText(
-                            message);
+        private void handleWelcome(
+                        String message) {
 
-                    departureToast.setVisible(
-                            true);
+                localPlayerId = message.substring(
+                                "WELCOME|".length());
 
-                    departureToast.toFront();
-
-                    if (departureToastTimer != null) {
-
-                        departureToastTimer.playFromStart();
-                    }
-                });
-    }
-
-    // =====================================================
-    // HIDE DEPARTURE TOAST
-    // =====================================================
-
-    private void hideDepartureToast() {
-
-        if (departureToastTimer != null) {
-
-            departureToastTimer.stop();
+                System.out.println(
+                                "Local player ID: "
+                                                + localPlayerId);
         }
 
-        if (departureToast != null) {
+        // =====================================================
+        // ROOM CREATED
+        // =====================================================
 
-            departureToast.setVisible(
-                    false);
-        }
-    }
+        private void handleRoomCreated(
+                        String message) {
 
-    // =====================================================
-    // SHORT PLAYER ID
-    // =====================================================
+                String[] parts = message.split("\\|");
 
-    private String shortPlayerId(
-            String playerId) {
+                if (parts.length < 3) {
 
-        if (playerId == null
-                || playerId.isBlank()) {
+                        System.err.println(
+                                        "Invalid ROOM_CREATED: "
+                                                        + message);
 
-            return "unknown";
-        }
+                        return;
+                }
 
-        /*
-         * WebSocketSession ID thường khá dài.
-         *
-         * Chỉ hiển thị 6 ký tự đầu
-         * cho dễ đọc.
-         */
-        if (playerId.length() <= 6) {
+                currentRoomId = parts[1];
 
-            return playerId;
+                currentMapId = parts[2];
+
+                currentHost = true;
+
+                showLobby(
+                                currentRoomId,
+                                true);
         }
 
-        return playerId.substring(
-                0,
-                6);
-    }
+        // =====================================================
+        // ROOM JOINED
+        // =====================================================
 
-    // =====================================================
-    // CHECK CURRENT SCENE
-    // =====================================================
+        private void handleRoomJoined(
+                        String message) {
 
-    private boolean isLobbyShowing() {
+                String[] parts = message.split("\\|");
 
-        if (scene == null) {
-            return false;
+                if (parts.length < 3) {
+
+                        System.err.println(
+                                        "Invalid ROOM_JOINED: "
+                                                        + message);
+
+                        return;
+                }
+
+                currentRoomId = parts[1];
+
+                currentMapId = parts[2];
+
+                currentHost = false;
+
+                showLobby(
+                                currentRoomId,
+                                false);
         }
 
-        return scene.getRoot() == lobby;
-    }
+        // =====================================================
+        // ROOM STATE
+        // =====================================================
 
-    // =====================================================
-    // STOP
-    // =====================================================
+        private void handleRoomState(
+                        String message) {
 
-    @Override
-    public void stop() {
+                String[] parts = message.split("\\|");
 
-        /*
-         * Không gửi LEAVE_ROOM ở đây.
-         *
-         * Khi application đóng,
-         * WebSocket disconnect sẽ khiến server
-         * tự cleanup PlayerSession / Room.
-         */
-    }
+                if (parts.length < 6) {
 
-    // =====================================================
-    // MAIN
-    // =====================================================
+                        System.err.println(
+                                        "Invalid ROOM_STATE: "
+                                                        + message);
 
-    public static void main(
-            String[] args) {
+                        return;
+                }
 
-        launch(args);
-    }
+                String roomId = parts[1];
+
+                int playerCount;
+                int maxPlayers;
+
+                String hostId = parts[4];
+
+                String mapId = parts[5];
+
+                try {
+
+                        playerCount = Integer.parseInt(
+                                        parts[2]);
+
+                        maxPlayers = Integer.parseInt(
+                                        parts[3]);
+
+                } catch (NumberFormatException e) {
+
+                        System.err.println(
+                                        "Invalid ROOM_STATE numbers: "
+                                                        + message);
+
+                        return;
+                }
+
+                if (currentRoomId != null
+                                && !currentRoomId.equals(
+                                                roomId)) {
+
+                        return;
+                }
+
+                currentRoomId = roomId;
+
+                currentMapId = mapId;
+
+                currentHost = localPlayerId != null
+                                && localPlayerId.equals(
+                                                hostId);
+
+                if (gameScene != null
+                                && scene.getRoot() == gameContainer) {
+
+                        return;
+                }
+
+                final String finalRoomId = roomId;
+
+                final String finalMapId = mapId;
+
+                final int finalPlayerCount = playerCount;
+
+                final int finalMaxPlayers = maxPlayers;
+
+                final boolean finalHost = currentHost;
+
+                Platform.runLater(
+                                () -> {
+
+                                        currentMapId = finalMapId;
+
+                                        showLobby(
+                                                        finalRoomId,
+                                                        finalHost);
+
+                                        lobby.setPlayers(
+                                                        finalPlayerCount,
+                                                        finalMaxPlayers);
+
+                                        lobby.setMap(
+                                                        finalMapId);
+
+                                        lobby.setHost(
+                                                        finalHost);
+                                });
+        }
+
+        // =====================================================
+        // ROOM LIST
+        // =====================================================
+
+        private void handleRoomList(
+                        String message) {
+
+                if ("ROOM_LIST|EMPTY".equals(
+                                message)) {
+
+                        Platform.runLater(
+                                        () -> findRoom.showEmpty());
+
+                        return;
+                }
+
+                String[] parts = message.split("\\|");
+
+                if (parts.length < 6) {
+
+                        System.err.println(
+                                        "Invalid ROOM_LIST: "
+                                                        + message);
+
+                        return;
+                }
+
+                String roomId = parts[1];
+
+                int currentPlayers;
+                int maxPlayers;
+
+                try {
+
+                        currentPlayers = Integer.parseInt(
+                                        parts[2]);
+
+                        maxPlayers = Integer.parseInt(
+                                        parts[3]);
+
+                } catch (NumberFormatException e) {
+
+                        System.err.println(
+                                        "Invalid ROOM_LIST numbers: "
+                                                        + message);
+
+                        return;
+                }
+
+                final int finalCurrentPlayers = currentPlayers;
+
+                final int finalMaxPlayers = maxPlayers;
+
+                Platform.runLater(
+                                () -> findRoom.addRoom(
+                                                roomId,
+                                                finalCurrentPlayers,
+                                                finalMaxPlayers));
+        }
+
+        // =====================================================
+        // ROOM ERROR
+        // =====================================================
+
+        private void handleRoomError(
+                        String message) {
+
+                String error = message.substring(
+                                "ROOM_ERROR|".length());
+
+                System.err.println(
+                                "Room error: "
+                                                + error);
+
+                Platform.runLater(
+                                () -> {
+
+                                        joinRoom.setError(
+                                                        error);
+
+                                        if (isLobbyShowing()) {
+
+                                                lobby.setError(
+                                                                error);
+                                        }
+
+                                        findRoom.setError(
+                                                        error);
+                                });
+        }
+
+        // =====================================================
+        // ROOM LEFT
+        // =====================================================
+
+        private void handleRoomLeft() {
+
+                currentRoomId = null;
+
+                currentMapId = null;
+
+                currentHost = false;
+
+                gameScene = null;
+
+                gameContainer = null;
+
+                hideDepartureToast();
+
+                network.setGameScene(
+                                null);
+
+                Platform.runLater(
+                                this::showMainMenu);
+        }
+
+        // =====================================================
+        // PLAYER LEFT
+        // =====================================================
+
+        private void handlePlayerLeft(
+                        String message) {
+
+                String[] parts = message.split("\\|");
+
+                if (parts.length < 5) {
+                        return;
+                }
+
+                String roomId = parts[1];
+
+                String playerId = parts[2];
+
+                boolean wasHost = Boolean.parseBoolean(
+                                parts[3]);
+
+                String newHostId = parts[4];
+
+                if (currentRoomId == null
+                                || !currentRoomId.equals(
+                                                roomId)) {
+
+                        return;
+                }
+
+                if (gameScene != null
+                                && scene.getRoot() == gameContainer) {
+
+                        currentHost = localPlayerId != null
+                                        && localPlayerId.equals(
+                                                        newHostId);
+
+                        String playerName = shortPlayerId(
+                                        playerId);
+
+                        final String notification;
+
+                        if (wasHost) {
+
+                                notification = "Host "
+                                                + playerName
+                                                + " đã rời trận. "
+                                                + "Host mới: "
+                                                + shortPlayerId(
+                                                                newHostId);
+
+                        } else {
+
+                                notification = "Người chơi "
+                                                + playerName
+                                                + " đã rời trận.";
+                        }
+
+                        showDepartureToast(
+                                        notification);
+
+                        return;
+                }
+
+                currentHost = localPlayerId != null
+                                && localPlayerId.equals(
+                                                newHostId);
+        }
+
+        // =====================================================
+        // GAME STARTED
+        // =====================================================
+
+        private void handleGameStarted(
+                        String message) {
+
+                String[] parts = message.split("\\|");
+
+                if (parts.length < 3) {
+                        return;
+                }
+
+                String roomId = parts[1];
+
+                String mapId = parts[2];
+
+                if (currentRoomId == null
+                                || !currentRoomId.equals(
+                                                roomId)) {
+
+                        return;
+                }
+
+                currentMapId = mapId;
+
+                Platform.runLater(
+                                this::openGameScene);
+        }
+
+        // =====================================================
+        // OPEN GAME
+        // =====================================================
+
+        private void openGameScene() {
+
+                if (gameScene != null) {
+                        return;
+                }
+
+                if (currentMapId == null
+                                || currentMapId.isBlank()) {
+
+                        System.err.println(
+                                        "Cannot open game: mapId is missing");
+
+                        return;
+                }
+
+                gameScene = new GameScene(
+                                network,
+                                currentMapId);
+
+                if (localPlayerId != null) {
+
+                        gameScene.setLocalPlayerId(
+                                        localPlayerId);
+                }
+
+                network.setGameScene(
+                                gameScene);
+
+                gameContainer = new StackPane();
+
+                gameContainer.setPrefSize(
+                                800,
+                                600);
+
+                gameContainer.getChildren().add(
+                                gameScene);
+
+                departureToast = new Label();
+
+                departureToast.setVisible(
+                                false);
+
+                departureToast.setManaged(
+                                false);
+
+                departureToast.setMouseTransparent(
+                                true);
+
+                departureToast.setWrapText(
+                                true);
+
+                departureToast.setMaxWidth(
+                                420);
+
+                departureToast.setAlignment(
+                                Pos.CENTER_LEFT);
+
+                departureToast.setStyle(
+                                "-fx-background-color: rgba(25, 29, 36, 0.94);"
+                                                + "-fx-text-fill: white;"
+                                                + "-fx-padding: 10 14;"
+                                                + "-fx-background-radius: 8;"
+                                                + "-fx-border-color: rgba(255,255,255,0.18);"
+                                                + "-fx-border-radius: 8;"
+                                                + "-fx-font-size: 14px;");
+
+                StackPane.setAlignment(
+                                departureToast,
+                                Pos.BOTTOM_LEFT);
+
+                StackPane.setMargin(
+                                departureToast,
+                                new javafx.geometry.Insets(
+                                                0,
+                                                0,
+                                                20,
+                                                20));
+
+                gameContainer.getChildren().add(
+                                departureToast);
+
+                departureToastTimer = new PauseTransition(
+                                Duration.seconds(4));
+
+                departureToastTimer.setOnFinished(
+                                event -> hideDepartureToast());
+
+                scene.setRoot(
+                                gameContainer);
+
+                gameScene.requestFocus();
+        }
+
+        // =====================================================
+        // SHOW DEPARTURE TOAST
+        // =====================================================
+
+        private void showDepartureToast(
+                        String message) {
+
+                if (departureToast == null) {
+                        return;
+                }
+
+                Platform.runLater(
+                                () -> {
+
+                                        departureToast.setText(
+                                                        message);
+
+                                        departureToast.setVisible(
+                                                        true);
+
+                                        departureToast.toFront();
+
+                                        if (departureToastTimer != null) {
+
+                                                departureToastTimer.playFromStart();
+                                        }
+                                });
+        }
+
+        // =====================================================
+        // HIDE DEPARTURE TOAST
+        // =====================================================
+
+        private void hideDepartureToast() {
+
+                if (departureToastTimer != null) {
+
+                        departureToastTimer.stop();
+                }
+
+                if (departureToast != null) {
+
+                        departureToast.setVisible(
+                                        false);
+                }
+        }
+
+        // =====================================================
+        // SHORT PLAYER ID
+        // =====================================================
+
+        private String shortPlayerId(
+                        String playerId) {
+
+                if (playerId == null
+                                || playerId.isBlank()) {
+
+                        return "unknown";
+                }
+
+                if (playerId.length() <= 6) {
+
+                        return playerId;
+                }
+
+                return playerId.substring(
+                                0,
+                                6);
+        }
+
+        // =====================================================
+        // CHECK CURRENT SCENE
+        // =====================================================
+
+        private boolean isLobbyShowing() {
+
+                if (scene == null) {
+                        return false;
+                }
+
+                return scene.getRoot() == lobby;
+        }
+
+        // =====================================================
+        // STOP
+        // =====================================================
+
+        @Override
+        public void stop() {
+        }
+
+        // =====================================================
+        // MAIN
+        // =====================================================
+
+        public static void main(
+                        String[] args) {
+
+                launch(args);
+        }
 }

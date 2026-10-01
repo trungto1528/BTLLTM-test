@@ -9,6 +9,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import com.test.common.InputCommand;
+import com.test.common.map.MapData;
 
 @Component
 public class GameWebSocketHandler
@@ -37,12 +38,6 @@ public class GameWebSocketHandler
         PlayerSession player =
                 new PlayerSession(playerId);
 
-        /*
-         * Player tồn tại trên server ngay khi
-         * WebSocket kết nối.
-         *
-         * Nhưng CHƯA thuộc room nào.
-         */
         gameServer.addPlayer(player);
 
         gameServer.addSession(
@@ -94,7 +89,18 @@ public class GameWebSocketHandler
 
             handleCreateRoom(
                     session,
-                    player);
+                    player,
+                    Room.DEFAULT_MAP_ID);
+
+            return;
+        }
+
+        if (input.startsWith("CREATE_ROOM|")) {
+
+            handleCreateRoom(
+                    session,
+                    player,
+                    input);
 
             return;
         }
@@ -125,9 +131,16 @@ public class GameWebSocketHandler
             return;
         }
 
-        /*
-         * JOIN_ROOM|ABCDE
-         */
+        if (input.startsWith("CHANGE_MAP|")) {
+
+            handleChangeMap(
+                    session,
+                    player,
+                    input);
+
+            return;
+        }
+
         if (input.startsWith("JOIN_ROOM|")) {
 
             handleJoinRoom(
@@ -162,17 +175,14 @@ public class GameWebSocketHandler
 
     private void handleCreateRoom(
             WebSocketSession session,
-            PlayerSession player)
+            PlayerSession player,
+            String message)
             throws Exception {
 
         String playerId =
                 player.getPlayerState()
                         .getPlayerId();
 
-        /*
-         * Không cho player đang ở room
-         * tạo room thứ hai.
-         */
         Room existingRoom =
                 gameServer.getRoomManager()
                         .findRoomByPlayer(
@@ -187,26 +197,222 @@ public class GameWebSocketHandler
             return;
         }
 
+        String mapId =
+                parseMapId(message);
+
+        if (mapId == null) {
+
+            sendError(
+                    session,
+                    "INVALID_MAP_ID");
+
+            return;
+        }
+
+        MapData map;
+
+        try {
+
+            map =
+                    gameServer.getMapRepository()
+                            .getMap(mapId);
+
+        } catch (IllegalArgumentException e) {
+
+            sendError(
+                    session,
+                    "MAP_NOT_FOUND");
+
+            return;
+        }
+
         Room room =
                 gameServer.getRoomManager()
-                        .createRoom(player);
+                        .createRoom(
+                                player,
+                                mapId);
+
+        player.setSpawn(
+                map.getSpawn());
 
         System.out.println(
                 "Room created: "
                         + room.getRoomId()
+                        + " | map="
+                        + room.getMapId()
+                        + " by "
+                        + playerId);
+
+        send(
+                session,
+                "ROOM_CREATED|"
+                        + room.getRoomId()
+                        + "|"
+                        + room.getMapId());
+
+        broadcastRoomState(room);
+    }
+
+    // =====================================================
+    // MAP ID
+    // =====================================================
+
+    private String parseMapId(
+            String message) {
+
+        if (message == null
+                || message.isBlank()) {
+
+            return null;
+        }
+
+        if ("CREATE_ROOM".equals(message)) {
+
+            return Room.DEFAULT_MAP_ID;
+        }
+
+        String[] parts =
+                message.split("\\|");
+
+        if (parts.length != 2) {
+
+            return null;
+        }
+
+        String mapId =
+                parts[1].trim();
+
+        if (mapId.isBlank()) {
+
+            return null;
+        }
+
+        return mapId;
+    }
+
+    // =====================================================
+    // CHANGE MAP
+    // =====================================================
+
+    private void handleChangeMap(
+            WebSocketSession session,
+            PlayerSession player,
+            String message)
+            throws Exception {
+
+        String playerId =
+                player.getPlayerState()
+                        .getPlayerId();
+
+        Room room =
+                gameServer.getRoomManager()
+                        .findRoomByPlayer(
+                                playerId);
+
+        if (room == null) {
+
+            sendError(
+                    session,
+                    "NOT_IN_ROOM");
+
+            return;
+        }
+
+        if (!room.isHost(playerId)) {
+
+            sendError(
+                    session,
+                    "NOT_HOST");
+
+            return;
+        }
+
+        if (room.isStarted()) {
+
+            sendError(
+                    session,
+                    "GAME_ALREADY_STARTED");
+
+            return;
+        }
+
+        String[] parts =
+                message.split("\\|");
+
+        if (parts.length != 2
+                || parts[1].isBlank()) {
+
+            sendError(
+                    session,
+                    "INVALID_MAP_ID");
+
+            return;
+        }
+
+        String mapId =
+                parts[1].trim();
+
+        MapData map;
+
+        try {
+
+            map =
+                    gameServer.getMapRepository()
+                            .getMap(mapId);
+
+        } catch (IllegalArgumentException e) {
+
+            sendError(
+                    session,
+                    "MAP_NOT_FOUND");
+
+            return;
+        }
+
+        boolean changed =
+                room.setMapId(mapId);
+
+        if (!changed) {
+
+            sendError(
+                    session,
+                    "MAP_CHANGE_FAILED");
+
+            return;
+        }
+
+        /*
+         * Map đã thay đổi nên spawn của host
+         * cũng phải chuyển sang spawn của map mới.
+         */
+        player.setSpawn(
+                map.getSpawn());
+
+        /*
+         * Các player khác cũng phải spawn
+         * theo map mới khi trận bắt đầu.
+         *
+         * Cập nhật spawn cho toàn bộ player
+         * trong room.
+         */
+        for (PlayerSession roomPlayer
+                : room.getPlayers()) {
+
+            roomPlayer.setSpawn(
+                    map.getSpawn());
+        }
+
+        System.out.println(
+                "Room "
+                        + room.getRoomId()
+                        + " changed map to "
+                        + mapId
                         + " by "
                         + playerId);
 
         /*
-         * Thông báo cho chính client.
-         */
-        send(
-                session,
-                "ROOM_CREATED|"
-                        + room.getRoomId());
-
-        /*
-         * Gửi trạng thái lobby.
+         * ROOM_STATE chứa mapId nên toàn bộ
+         * client trong lobby sẽ cập nhật.
          */
         broadcastRoomState(room);
     }
@@ -224,11 +430,6 @@ public class GameWebSocketHandler
         String[] parts =
                 message.split("\\|");
 
-        /*
-         * Format:
-         *
-         * JOIN_ROOM|ABCDE
-         */
         if (parts.length != 2
                 || parts[1].isBlank()) {
 
@@ -248,9 +449,6 @@ public class GameWebSocketHandler
                 player.getPlayerState()
                         .getPlayerId();
 
-        /*
-         * Không cho join khi đã ở room.
-         */
         Room currentRoom =
                 gameServer.getRoomManager()
                         .findRoomByPlayer(
@@ -278,9 +476,6 @@ public class GameWebSocketHandler
             return;
         }
 
-        /*
-         * Không cho join trận đang chạy.
-         */
         if (room.isStarted()) {
 
             sendError(
@@ -295,6 +490,24 @@ public class GameWebSocketHandler
             sendError(
                     session,
                     "ROOM_FULL");
+
+            return;
+        }
+
+        MapData map;
+
+        try {
+
+            map =
+                    gameServer.getMapRepository()
+                            .getMap(
+                                    room.getMapId());
+
+        } catch (IllegalArgumentException e) {
+
+            sendError(
+                    session,
+                    "MAP_NOT_FOUND");
 
             return;
         }
@@ -314,24 +527,24 @@ public class GameWebSocketHandler
             return;
         }
 
+        player.setSpawn(
+                map.getSpawn());
+
         System.out.println(
                 "Player "
                         + playerId
                         + " joined room "
-                        + roomId);
+                        + roomId
+                        + " | map="
+                        + room.getMapId());
 
-        /*
-         * Client vừa join nhận ROOM_JOINED.
-         */
         send(
                 session,
                 "ROOM_JOINED|"
-                        + room.getRoomId());
+                        + room.getRoomId()
+                        + "|"
+                        + room.getMapId());
 
-        /*
-         * Tất cả player trong room cập nhật
-         * danh sách người chơi.
-         */
         broadcastRoomState(room);
     }
 
@@ -347,9 +560,6 @@ public class GameWebSocketHandler
                 gameServer.getRoomManager()
                         .getAvailableRooms();
 
-        /*
-         * Không có room.
-         */
         if (rooms.isEmpty()) {
 
             send(
@@ -363,11 +573,6 @@ public class GameWebSocketHandler
             return;
         }
 
-        /*
-         * Mỗi room:
-         *
-         * ROOM_LIST|ABCDE|1|4|OPEN
-         */
         for (Room room : rooms) {
 
             send(
@@ -378,7 +583,8 @@ public class GameWebSocketHandler
                             + room.getPlayerCount()
                             + "|"
                             + room.getMaxPlayers()
-                            + "|OPEN");
+                            + "|OPEN|"
+                            + room.getMapId());
         }
 
         send(
@@ -416,41 +622,20 @@ public class GameWebSocketHandler
         String roomId =
                 room.getRoomId();
 
-        /*
-         * Lưu lại trước khi remove.
-         */
         boolean wasHost =
                 room.isHost(playerId);
 
-        /*
-         * leaveRoom():
-         *
-         * - remove player
-         * - nếu host rời thì đổi host
-         * - KHÔNG reset started
-         * - nếu empty thì xóa room
-         */
         Room remainingRoom =
                 gameServer.getRoomManager()
                         .leaveRoom(
                                 roomId,
                                 playerId);
 
-        /*
-         * Xác nhận với player vừa rời.
-         */
         send(
                 session,
                 "ROOM_LEFT|"
                         + roomId);
 
-        /*
-         * Nếu room vẫn còn người:
-         *
-         * - trận tiếp tục nếu đã started
-         * - thông báo người rời
-         * - cập nhật host/count
-         */
         if (remainingRoom != null) {
 
             String newHostId =
@@ -508,9 +693,6 @@ public class GameWebSocketHandler
             return;
         }
 
-        /*
-         * Chỉ host được START.
-         */
         if (!room.isHost(playerId)) {
 
             sendError(
@@ -529,9 +711,6 @@ public class GameWebSocketHandler
             return;
         }
 
-        /*
-         * Room bắt đầu timeline riêng từ tick 0.
-         */
         boolean started =
                 room.startGame();
 
@@ -546,16 +725,16 @@ public class GameWebSocketHandler
 
         System.out.println(
                 "Game started in room "
-                        + room.getRoomId());
+                        + room.getRoomId()
+                        + " | map="
+                        + room.getMapId());
 
-        /*
-         * Chỉ player trong room này nhận
-         * GAME_STARTED.
-         */
         broadcast(
                 room,
                 "GAME_STARTED|"
-                        + room.getRoomId());
+                        + room.getRoomId()
+                        + "|"
+                        + room.getMapId());
     }
 
     // =====================================================
@@ -579,9 +758,6 @@ public class GameWebSocketHandler
             return;
         }
 
-        /*
-         * Chưa START thì không nhận gameplay input.
-         */
         if (!room.isStarted()) {
             return;
         }
@@ -589,11 +765,6 @@ public class GameWebSocketHandler
         String[] parts =
                 input.split("\\|");
 
-        /*
-         * Format:
-         *
-         * INPUT|sequence|action
-         */
         if (parts.length != 3) {
 
             System.out.println(
@@ -641,12 +812,6 @@ public class GameWebSocketHandler
             return;
         }
 
-        /*
-         * KHÔNG xử lý gameplay trực tiếp
-         * ở WebSocket thread.
-         *
-         * Chỉ đưa input vào queue.
-         */
         player.queueInput(
                 new InputCommand(
                         sequence,
@@ -695,7 +860,9 @@ public class GameWebSocketHandler
                         + "|"
                         + room.getMaxPlayers()
                         + "|"
-                        + room.getHostPlayerId();
+                        + room.getHostPlayerId()
+                        + "|"
+                        + room.getMapId();
 
         broadcast(
                 room,
@@ -703,7 +870,7 @@ public class GameWebSocketHandler
     }
 
     // =====================================================
-    // BROADCAST TO ROOM
+    // BROADCAST
     // =====================================================
 
     private void broadcast(
@@ -785,10 +952,6 @@ public class GameWebSocketHandler
                 gameServer.getPlayer(
                         playerId);
 
-        /*
-         * Phải remove player khỏi room TRƯỚC
-         * khi remove khỏi GameServer.
-         */
         if (player != null) {
 
             Room room =
@@ -801,28 +964,15 @@ public class GameWebSocketHandler
                 String roomId =
                         room.getRoomId();
 
-                /*
-                 * Lưu host trước khi remove.
-                 */
                 boolean wasHost =
                         room.isHost(playerId);
 
-                /*
-                 * leaveRoom KHÔNG reset game.
-                 *
-                 * Nếu đang chơi:
-                 * started vẫn = true.
-                 */
                 Room remainingRoom =
                         gameServer.getRoomManager()
                                 .leaveRoom(
                                         roomId,
                                         playerId);
 
-                /*
-                 * Nếu room còn người:
-                 * gửi thông báo rời phòng.
-                 */
                 if (remainingRoom != null) {
 
                     try {
@@ -831,10 +981,6 @@ public class GameWebSocketHandler
                                 remainingRoom
                                         .getHostPlayerId();
 
-                        /*
-                         * Chỉ gửi tới những người
-                         * còn trong room.
-                         */
                         broadcast(
                                 remainingRoom,
                                 "PLAYER_LEFT|"
@@ -846,9 +992,6 @@ public class GameWebSocketHandler
                                         + "|"
                                         + newHostId);
 
-                        /*
-                         * Cập nhật count/host.
-                         */
                         broadcastRoomState(
                                 remainingRoom);
 
@@ -871,10 +1014,6 @@ public class GameWebSocketHandler
             }
         }
 
-        /*
-         * Sau đó mới remove global
-         * player/session.
-         */
         gameServer.removePlayer(
                 playerId);
 

@@ -11,11 +11,7 @@ import javafx.scene.text.Font;
 
 public class MainMenuView extends VBox {
 
-    private final GameApp app;
-
     public MainMenuView(GameApp app) {
-
-        this.app = app;
 
         setSpacing(20);
         setAlignment(Pos.CENTER);

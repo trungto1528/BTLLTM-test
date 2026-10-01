@@ -1,9 +1,12 @@
 package com.test.ui;
 
 import com.test.GameApp;
+import com.test.common.map.MapInfo;
 
+import javafx.collections.FXCollections;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -16,9 +19,14 @@ public class LobbyView extends VBox {
     private final Label roomIdLabel;
     private final Label playersLabel;
     private final Label statusLabel;
+    private final Label mapTitleLabel;
+
+    private final ComboBox<MapInfo> mapComboBox;
 
     private final Button startButton;
     private final Button leaveButton;
+
+    private boolean updatingMap;
 
     public LobbyView(GameApp app) {
 
@@ -72,13 +80,104 @@ public class LobbyView extends VBox {
                 Color.LIGHTGRAY);
 
         // =================================================
+        // MAP
+        // =================================================
+
+        mapTitleLabel =
+                new Label("MAP");
+
+        mapTitleLabel.setFont(
+                Font.font(16));
+
+        mapTitleLabel.setTextFill(
+                Color.LIGHTGRAY);
+
+        mapComboBox =
+                new ComboBox<>();
+
+        mapComboBox.setPrefWidth(300);
+        mapComboBox.setPrefHeight(42);
+
+        /*
+         * Chỉ hiển thị tên map.
+         */
+        mapComboBox.setCellFactory(
+                list -> new javafx.scene.control.ListCell<>() {
+
+                    @Override
+                    protected void updateItem(
+                            MapInfo item,
+                            boolean empty) {
+
+                        super.updateItem(
+                                item,
+                                empty);
+
+                        if (empty || item == null) {
+
+                            setText(null);
+
+                        } else {
+
+                            setText(
+                                    item.getName());
+                        }
+                    }
+                });
+
+        mapComboBox.setButtonCell(
+                new javafx.scene.control.ListCell<>() {
+
+                    @Override
+                    protected void updateItem(
+                            MapInfo item,
+                            boolean empty) {
+
+                        super.updateItem(
+                                item,
+                                empty);
+
+                        if (empty || item == null) {
+
+                            setText("No map");
+
+                        } else {
+
+                            setText(
+                                    item.getName());
+                        }
+                    }
+                });
+
+        mapComboBox.setOnAction(
+                event -> {
+
+                    if (updatingMap) {
+                        return;
+                    }
+
+                    MapInfo selected =
+                            mapComboBox.getValue();
+
+                    if (selected == null) {
+                        return;
+                    }
+
+                    if (!app.isCurrentHost()) {
+                        return;
+                    }
+
+                    app.changeMap(
+                            selected.getId());
+                });
+
+        // =================================================
         // STATUS
         // =================================================
 
         statusLabel =
                 new Label(
-                        "Waiting for players..."
-                );
+                        "Waiting for players...");
 
         statusLabel.setFont(
                 Font.font(16));
@@ -99,9 +198,6 @@ public class LobbyView extends VBox {
         startButton.setFont(
                 Font.font(18));
 
-        /*
-         * Chỉ host mới được START.
-         */
         startButton.setDisable(true);
 
         startButton.setOnAction(
@@ -120,13 +216,6 @@ public class LobbyView extends VBox {
         leaveButton.setFont(
                 Font.font(16));
 
-        /*
-         * Không chỉ chuyển UI.
-         *
-         * Phải báo server:
-         *
-         * LEAVE_ROOM
-         */
         leaveButton.setOnAction(
                 e -> app.leaveRoom());
 
@@ -138,6 +227,8 @@ public class LobbyView extends VBox {
                 title,
                 roomIdLabel,
                 playersLabel,
+                mapTitleLabel,
+                mapComboBox,
                 statusLabel,
                 startButton,
                 leaveButton
@@ -181,6 +272,62 @@ public class LobbyView extends VBox {
     }
 
     // =====================================================
+    // MAP LIST
+    // =====================================================
+
+    public void setMaps(
+            java.util.List<MapInfo> maps) {
+
+        updatingMap = true;
+
+        try {
+
+            mapComboBox.setItems(
+                    FXCollections.observableArrayList(
+                            maps));
+        } finally {
+
+            updatingMap = false;
+        }
+    }
+
+    // =====================================================
+    // CURRENT MAP
+    // =====================================================
+
+    public void setMap(
+            String mapId) {
+
+        if (mapId == null
+                || mapId.isBlank()) {
+
+            return;
+        }
+
+        updatingMap = true;
+
+        try {
+
+            for (MapInfo map
+                    : mapComboBox.getItems()) {
+
+                if (mapId.equals(
+                        map.getId())) {
+
+                    mapComboBox.setValue(
+                            map);
+
+                    return;
+                }
+            }
+
+        } finally {
+
+            updatingMap = false;
+        }
+    }
+
+    // =====================================================
     // HOST
     // =====================================================
 
@@ -188,6 +335,9 @@ public class LobbyView extends VBox {
             boolean host) {
 
         startButton.setDisable(
+                !host);
+
+        mapComboBox.setDisable(
                 !host);
 
         if (host) {
@@ -222,6 +372,7 @@ public class LobbyView extends VBox {
                 "Starting game...");
 
         startButton.setDisable(true);
+        mapComboBox.setDisable(true);
         leaveButton.setDisable(true);
     }
 
@@ -251,7 +402,20 @@ public class LobbyView extends VBox {
         statusLabel.setText(
                 "Waiting for players...");
 
+        updatingMap = true;
+
+        try {
+
+            mapComboBox.getItems().clear();
+            mapComboBox.setValue(null);
+
+        } finally {
+
+            updatingMap = false;
+        }
+
         startButton.setDisable(true);
+        mapComboBox.setDisable(true);
         leaveButton.setDisable(false);
     }
 }
