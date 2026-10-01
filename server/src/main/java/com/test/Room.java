@@ -7,7 +7,6 @@ import java.util.concurrent.ConcurrentMap;
 public class Room {
 
     public static final int DEFAULT_MAX_PLAYERS = 4;
-    public static final String DEFAULT_MAP_ID = "map01";
 
     private final String roomId;
     private final int maxPlayers;
@@ -20,14 +19,6 @@ public class Room {
     private volatile String hostPlayerId;
     private volatile boolean started;
     private long currentTick;
-
-    public Room(String roomId) {
-
-        this(
-                roomId,
-                DEFAULT_MAX_PLAYERS,
-                DEFAULT_MAP_ID);
-    }
 
     public Room(
             String roomId,

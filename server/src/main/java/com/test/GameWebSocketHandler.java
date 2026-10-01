@@ -10,6 +10,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import com.test.common.InputCommand;
 import com.test.common.map.MapData;
+import com.test.common.map.MapInfo;
 
 @Component
 public class GameWebSocketHandler
@@ -89,18 +90,20 @@ public class GameWebSocketHandler
 
             handleCreateRoom(
                     session,
-                    player,
-                    Room.DEFAULT_MAP_ID);
+                    player);
 
             return;
         }
 
         if (input.startsWith("CREATE_ROOM|")) {
 
+            /*
+             * Client không còn được phép
+             * chọn map khi tạo room.
+             */
             handleCreateRoom(
                     session,
-                    player,
-                    input);
+                    player);
 
             return;
         }
@@ -175,8 +178,7 @@ public class GameWebSocketHandler
 
     private void handleCreateRoom(
             WebSocketSession session,
-            PlayerSession player,
-            String message)
+            PlayerSession player)
             throws Exception {
 
         String playerId =
@@ -197,17 +199,42 @@ public class GameWebSocketHandler
             return;
         }
 
-        String mapId =
-                parseMapId(message);
+        /*
+         * Map khởi đầu của room được quyết định
+         * hoàn toàn ở server.
+         *
+         * Không còn phụ thuộc vào map01.
+         */
+        List<MapInfo> mapInfos =
+                gameServer.getMapRepository()
+                        .getMapInfos();
 
-        if (mapId == null) {
+        if (mapInfos == null
+                || mapInfos.isEmpty()) {
 
             sendError(
                     session,
-                    "INVALID_MAP_ID");
+                    "NO_MAP_AVAILABLE");
 
             return;
         }
+
+        MapInfo firstMap =
+                mapInfos.get(0);
+
+        if (firstMap == null
+                || firstMap.getId() == null
+                || firstMap.getId().isBlank()) {
+
+            sendError(
+                    session,
+                    "INVALID_DEFAULT_MAP");
+
+            return;
+        }
+
+        String mapId =
+                firstMap.getId();
 
         MapData map;
 
@@ -251,43 +278,6 @@ public class GameWebSocketHandler
                         + room.getMapId());
 
         broadcastRoomState(room);
-    }
-
-    // =====================================================
-    // MAP ID
-    // =====================================================
-
-    private String parseMapId(
-            String message) {
-
-        if (message == null
-                || message.isBlank()) {
-
-            return null;
-        }
-
-        if ("CREATE_ROOM".equals(message)) {
-
-            return Room.DEFAULT_MAP_ID;
-        }
-
-        String[] parts =
-                message.split("\\|");
-
-        if (parts.length != 2) {
-
-            return null;
-        }
-
-        String mapId =
-                parts[1].trim();
-
-        if (mapId.isBlank()) {
-
-            return null;
-        }
-
-        return mapId;
     }
 
     // =====================================================
@@ -381,20 +371,9 @@ public class GameWebSocketHandler
             return;
         }
 
-        /*
-         * Map đã thay đổi nên spawn của host
-         * cũng phải chuyển sang spawn của map mới.
-         */
         player.setSpawn(
                 map.getSpawn());
 
-        /*
-         * Các player khác cũng phải spawn
-         * theo map mới khi trận bắt đầu.
-         *
-         * Cập nhật spawn cho toàn bộ player
-         * trong room.
-         */
         for (PlayerSession roomPlayer
                 : room.getPlayers()) {
 
@@ -410,10 +389,6 @@ public class GameWebSocketHandler
                         + " by "
                         + playerId);
 
-        /*
-         * ROOM_STATE chứa mapId nên toàn bộ
-         * client trong lobby sẽ cập nhật.
-         */
         broadcastRoomState(room);
     }
 

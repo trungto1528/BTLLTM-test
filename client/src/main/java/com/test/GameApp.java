@@ -314,21 +314,8 @@ public class GameApp extends Application {
 
         public void createRoom() {
 
-                createRoom("map01");
-        }
-
-        public void createRoom(
-                        String mapId) {
-
-                if (mapId == null
-                                || mapId.isBlank()) {
-
-                        mapId = "map01";
-                }
-
                 network.send(
-                                "CREATE_ROOM|"
-                                                + mapId);
+                                "CREATE_ROOM");
         }
 
         // =====================================================

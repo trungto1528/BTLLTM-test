@@ -25,15 +25,6 @@ public class RoomManager {
     // =====================================================
 
     public Room createRoom(
-            PlayerSession host) {
-
-        return createRoom(
-                host,
-                Room.DEFAULT_MAP_ID
-        );
-    }
-
-    public Room createRoom(
             PlayerSession host,
             String mapId) {
 
