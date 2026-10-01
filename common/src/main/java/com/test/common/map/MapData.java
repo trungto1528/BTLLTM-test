@@ -93,7 +93,10 @@ public class MapData {
                 int gridX = cell.getGridX();
                 int gridY = cell.getGridY();
 
-                if (!isInside(gridX, gridY)) {
+                if (!isInsideBounds(
+                        gridX,
+                        gridY)) {
+
                     throw new IllegalArgumentException(
                             "Cell is outside map bounds: "
                                     + gridX
@@ -101,7 +104,10 @@ public class MapData {
                                     + gridY);
                 }
 
-                if (getCell(gridX, gridY) != null) {
+                if (findCell(
+                        gridX,
+                        gridY) != null) {
+
                     throw new IllegalArgumentException(
                             "Duplicate map cell: "
                                     + gridX
@@ -151,7 +157,10 @@ public class MapData {
         int gridX = cell.getGridX();
         int gridY = cell.getGridY();
 
-        if (!isInside(gridX, gridY)) {
+        if (!isInsideBounds(
+                gridX,
+                gridY)) {
+
             throw new IllegalArgumentException(
                     "Cell is outside map bounds: "
                             + gridX
@@ -159,7 +168,10 @@ public class MapData {
                             + gridY);
         }
 
-        if (getCell(gridX, gridY) != null) {
+        if (findCell(
+                gridX,
+                gridY) != null) {
+
             throw new IllegalArgumentException(
                     "Duplicate map cell: "
                             + gridX
@@ -175,7 +187,10 @@ public class MapData {
             int gridY,
             MapCellType type) {
 
-        if (!isInside(gridX, gridY)) {
+        if (!isInsideBounds(
+                gridX,
+                gridY)) {
+
             throw new IllegalArgumentException(
                     "Cell is outside map bounds: "
                             + gridX
@@ -188,7 +203,9 @@ public class MapData {
                     "type must not be null");
         }
 
-        removeCell(gridX, gridY);
+        removeCell(
+                gridX,
+                gridY);
 
         if (type == MapCellType.EMPTY) {
             return;
@@ -228,7 +245,7 @@ public class MapData {
             int gridX,
             int gridY) {
 
-        return getCell(
+        return findCell(
                 gridX,
                 gridY) != null;
     }
@@ -238,6 +255,34 @@ public class MapData {
     }
 
     public MapCellData getCell(
+            int gridX,
+            int gridY) {
+
+        return findCell(
+                gridX,
+                gridY);
+    }
+
+    public boolean isInside(
+            int gridX,
+            int gridY) {
+
+        return isInsideBounds(
+                gridX,
+                gridY);
+    }
+
+    private boolean isInsideBounds(
+            int gridX,
+            int gridY) {
+
+        return gridX >= 0
+                && gridX < width / cellSize
+                && gridY >= 0
+                && gridY < height / cellSize;
+    }
+
+    private MapCellData findCell(
             int gridX,
             int gridY) {
 
@@ -251,15 +296,5 @@ public class MapData {
         }
 
         return null;
-    }
-
-    public boolean isInside(
-            int gridX,
-            int gridY) {
-
-        return gridX >= 0
-                && gridX < getColumns()
-                && gridY >= 0
-                && gridY < getRows();
     }
 }

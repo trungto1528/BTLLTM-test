@@ -4,11 +4,10 @@ import com.test.common.map.MapCellType;
 import com.test.common.map.MapData;
 
 import javafx.geometry.Insets;
-import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
-import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -44,24 +43,16 @@ public class MapEditorScene extends BorderPane {
                 new ToggleGroup();
 
         emptyButton =
-                createCellTypeButton(
-                        "Empty",
-                        MapCellType.EMPTY);
+                createCellTypeButton("Empty");
 
         squareButton =
-                createCellTypeButton(
-                        "Square",
-                        MapCellType.SQUARE);
+                createCellTypeButton("Square");
 
         triangleLeftButton =
-                createCellTypeButton(
-                        "Triangle Left",
-                        MapCellType.TRIANGLE_LEFT);
+                createCellTypeButton("Triangle Left");
 
         triangleRightButton =
-                createCellTypeButton(
-                        "Triangle Right",
-                        MapCellType.TRIANGLE_RIGHT);
+                createCellTypeButton("Triangle Right");
 
         squareButton.setSelected(true);
 
@@ -81,8 +72,7 @@ public class MapEditorScene extends BorderPane {
     }
 
     private ToggleButton createCellTypeButton(
-            String text,
-            MapCellType type) {
+            String text) {
 
         ToggleButton button =
                 new ToggleButton(text);
