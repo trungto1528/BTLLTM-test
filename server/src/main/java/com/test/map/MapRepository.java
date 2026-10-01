@@ -65,14 +65,25 @@ public class MapRepository {
                                 mapFile.height(),
                                 mapFile.cellSize());
 
-                addFloor(map, mapFile);
-                addWalls(map, mapFile);
-                addPlatforms(map, mapFile);
-                addTriangles(map, mapFile);
+                addCells(
+                        map,
+                        mapFile.square(),
+                        MapCellType.SQUARE);
+
+                addCells(
+                        map,
+                        mapFile.triangleLeft(),
+                        MapCellType.TRIANGLE_LEFT);
+
+                addCells(
+                        map,
+                        mapFile.triangleRight(),
+                        MapCellType.TRIANGLE_RIGHT);
 
                 if (maps.containsKey(mapFile.id())) {
                     throw new IllegalArgumentException(
-                            "Duplicate map id: " + mapFile.id());
+                            "Duplicate map id: "
+                                    + mapFile.id());
                 }
 
                 maps.put(
@@ -85,116 +96,60 @@ public class MapRepository {
                                 mapFile.id(),
                                 mapFile.name()));
             }
+
         } catch (IOException e) {
+
             throw new IllegalStateException(
-                    "Failed to load map: " + resourcePath,
+                    "Failed to load map: "
+                            + resourcePath,
                     e);
         }
     }
 
-    private void addFloor(
+    private void addCells(
             MapData map,
-            MapFile mapFile) {
-
-        if (mapFile.floor() == null) {
-            return;
-        }
-
-        for (int x = 0; x < map.getColumns(); x++) {
-            addCell(
-                    map,
-                    x,
-                    mapFile.floor(),
-                    MapCellType.SQUARE);
-        }
-    }
-
-    private void addWalls(
-            MapData map,
-            MapFile mapFile) {
-
-        if (mapFile.walls() == null) {
-            return;
-        }
-
-        Walls walls = mapFile.walls();
-
-        for (int y = walls.fromY();
-                y <= walls.toY();
-                y++) {
-
-            addCell(
-                    map,
-                    walls.left(),
-                    y,
-                    MapCellType.SQUARE);
-
-            addCell(
-                    map,
-                    walls.right(),
-                    y,
-                    MapCellType.SQUARE);
-        }
-    }
-
-    private void addPlatforms(
-            MapData map,
-            MapFile mapFile) {
-
-        if (mapFile.platforms() == null) {
-            return;
-        }
-
-        for (Platform platform : mapFile.platforms()) {
-            for (int x = 0;
-                    x < platform.width();
-                    x++) {
-
-                addCell(
-                        map,
-                        platform.x() + x,
-                        platform.y(),
-                        MapCellType.SQUARE);
-            }
-        }
-    }
-
-    private void addTriangles(
-            MapData map,
-            MapFile mapFile) {
-
-        if (mapFile.triangles() == null) {
-            return;
-        }
-
-        for (Triangle triangle : mapFile.triangles()) {
-            addCell(
-                    map,
-                    triangle.x(),
-                    triangle.y(),
-                    triangle.type());
-        }
-    }
-
-    private void addCell(
-            MapData map,
-            int gridX,
-            int gridY,
+            List<List<Integer>> coordinates,
             MapCellType type) {
 
-        if (!map.isInside(gridX, gridY)) {
+        if (coordinates == null) {
             return;
         }
 
-        if (map.getCell(gridX, gridY) != null) {
-            return;
-        }
+        for (List<Integer> coordinate : coordinates) {
 
-        map.addCell(
-                new MapCellData(
-                        gridX,
-                        gridY,
-                        type));
+            if (coordinate == null
+                    || coordinate.size() != 2) {
+
+                throw new IllegalArgumentException(
+                        "Invalid map coordinate: "
+                                + coordinate);
+            }
+
+            int gridX = coordinate.get(0);
+            int gridY = coordinate.get(1);
+
+            if (!map.isInside(gridX, gridY)) {
+                throw new IllegalArgumentException(
+                        "Cell is outside map bounds: "
+                                + gridX
+                                + ", "
+                                + gridY);
+            }
+
+            if (map.getCell(gridX, gridY) != null) {
+                throw new IllegalArgumentException(
+                        "Duplicate map cell: "
+                                + gridX
+                                + ", "
+                                + gridY);
+            }
+
+            map.addCell(
+                    new MapCellData(
+                            gridX,
+                            gridY,
+                            type));
+        }
     }
 
     private record MapFile(
@@ -203,28 +158,8 @@ public class MapRepository {
             int width,
             int height,
             int cellSize,
-            Integer floor,
-            Walls walls,
-            List<Platform> platforms,
-            List<Triangle> triangles) {
-    }
-
-    private record Walls(
-            int left,
-            int right,
-            int fromY,
-            int toY) {
-    }
-
-    private record Platform(
-            int x,
-            int y,
-            int width) {
-    }
-
-    private record Triangle(
-            int x,
-            int y,
-            MapCellType type) {
+            List<List<Integer>> square,
+            List<List<Integer>> triangleLeft,
+            List<List<Integer>> triangleRight) {
     }
 }
