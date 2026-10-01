@@ -160,7 +160,7 @@ public class GameSceneNetwork {
 
                 index += 16;
 
-            } catch (Exception e) {
+            } catch (NumberFormatException e) {
 
                 System.err.println(
                         "Invalid WORLD_STATE player: "
@@ -212,16 +212,14 @@ public class GameSceneNetwork {
 
         try {
 
-            Integer.parseInt(
+            Integer.valueOf(
                     parts[2]);
 
-        } catch (Exception e) {
+        } catch (NumberFormatException e) {
 
             System.err.println(
                     "Invalid PLAYER_STATE: "
                             + message);
-
-            e.printStackTrace();
         }
     }
 

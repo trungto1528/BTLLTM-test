@@ -42,7 +42,6 @@ public class GameSceneRemotePlayers {
         private double targetX;
         private double targetY;
 
-        private boolean previousOnGround;
         private boolean targetOnGround;
 
         private boolean initialized;
@@ -126,8 +125,6 @@ public class GameSceneRemotePlayers {
             remoteState.targetY =
                     snapshot.y;
 
-            remoteState.previousOnGround =
-                    snapshot.onGround;
 
             remoteState.targetOnGround =
                     snapshot.onGround;
@@ -143,8 +140,6 @@ public class GameSceneRemotePlayers {
             remoteState.previousY =
                     remoteState.targetY;
 
-            remoteState.previousOnGround =
-                    remoteState.targetOnGround;
 
             remoteState.targetX =
                     snapshot.x;

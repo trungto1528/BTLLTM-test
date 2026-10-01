@@ -3,8 +3,6 @@ package com.test.core.scene;
 import com.test.common.map.MapData;
 
 public class GameSceneCamera {
-
-    private static final double VIEW_WIDTH = 800;
     private static final double VIEW_HEIGHT = 600;
 
     private double cameraY = 0;

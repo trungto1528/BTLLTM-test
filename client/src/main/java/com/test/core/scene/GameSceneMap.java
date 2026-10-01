@@ -1,5 +1,7 @@
 package com.test.core.scene;
 
+import java.io.IOException;
+
 import com.test.common.map.MapData;
 import com.test.core.GameMapLoader;
 import com.test.core.GameMapRenderer;
@@ -106,10 +108,7 @@ public class GameSceneMap {
                             scene.startLoop();
                         });
 
-                    } catch (Exception e) {
-
-                        e.printStackTrace();
-
+                    } catch (IOException | IllegalStateException | InterruptedException e) {
                         Platform.runLater(() -> {
 
                             Alert alert =
