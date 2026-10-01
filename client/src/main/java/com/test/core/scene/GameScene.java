@@ -18,6 +18,8 @@ public class GameScene extends Pane {
 
     private final GameWebSocketClient network;
 
+    private final String mapId;
+
     private final Pane world =
             new Pane();
 
@@ -39,21 +41,33 @@ public class GameScene extends Pane {
     private final GameSceneCamera camera;
 
     public GameScene(
-            GameWebSocketClient network) {
+            GameWebSocketClient network,
+            String mapId) {
 
         this.network = network;
+
+        if (mapId == null
+                || mapId.isBlank()) {
+
+            throw new IllegalArgumentException(
+                    "mapId must not be blank");
+        }
+
+        this.mapId =
+                mapId;
 
         setPrefSize(
                 VIEW_WIDTH,
                 VIEW_HEIGHT);
 
-        getChildren().add(world);
+        getChildren().add(
+                world);
 
         /*
          * Player được tạo tạm thời tại 0, 0.
          *
          * Vị trí thật sẽ được lấy từ
-         * map01.json sau khi map load xong.
+         * map data sau khi load xong.
          */
         player =
                 new Player(
@@ -108,12 +122,18 @@ public class GameScene extends Pane {
 
         input.setup();
 
-        map.loadAsync();
+        map.loadAsync(
+                mapId);
 
         camera.update();
 
         Platform.runLater(
                 this::requestFocus);
+    }
+
+    public String getMapId() {
+
+        return mapId;
     }
 
     public void setMapSpawn(
@@ -127,6 +147,9 @@ public class GameScene extends Pane {
         controller.getState().setY(y);
 
         controller.getState().setOnGround(true);
+
+        controller.getState().setVelocityX(0);
+        controller.getState().setVelocityY(0);
 
         updateJumpBar();
 

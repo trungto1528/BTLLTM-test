@@ -30,7 +30,15 @@ public class GameSceneMap {
         return mapRenderer;
     }
 
-    public void loadAsync() {
+    public void loadAsync(
+            String mapId) {
+
+        if (mapId == null
+                || mapId.isBlank()) {
+
+            throw new IllegalArgumentException(
+                    "mapId must not be blank");
+        }
 
         Thread mapLoaderThread =
                 new Thread(() -> {
@@ -39,7 +47,7 @@ public class GameSceneMap {
 
                         MapData loadedMap =
                                 new GameMapLoader()
-                                        .load("map01");
+                                        .load(mapId);
 
                         Platform.runLater(() -> {
 
@@ -58,7 +66,8 @@ public class GameSceneMap {
                                     == null) {
 
                                 throw new IllegalStateException(
-                                        "Map spawn is missing");
+                                        "Map spawn is missing: "
+                                                + mapId);
                             }
 
                             scene.setMapSpawn(
@@ -92,7 +101,8 @@ public class GameSceneMap {
                                     "Map loading failed");
 
                             alert.setHeaderText(
-                                    "Không thể tải bản đồ map01");
+                                    "Không thể tải bản đồ "
+                                            + mapId);
 
                             alert.setContentText(
                                     e.getMessage());
