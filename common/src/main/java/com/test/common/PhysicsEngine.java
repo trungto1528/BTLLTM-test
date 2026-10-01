@@ -6,6 +6,9 @@ import com.test.common.map.MapData;
 
 public class PhysicsEngine {
 
+    private static final double SLOPE_NORMAL =
+            0.70710678118;
+
     public void tick(
             PlayerState player,
             MapData map,
@@ -15,6 +18,17 @@ public class PhysicsEngine {
         final double deltaTime =
                 GameConfig.TICK_DT;
 
+        /*
+         * =========================
+         * INPUT HORIZONTAL
+         * =========================
+         *
+         * Chỉ cho A/D điều khiển X khi đang
+         * đứng trên mặt phẳng.
+         *
+         * Trên dốc, X/Y do slope physics
+         * quyết định.
+         */
         if (player.isOnGround()
                 && !player.isChargingJump()) {
 
@@ -34,9 +48,21 @@ public class PhysicsEngine {
             }
         }
 
-        double oldX = player.getX();
-        double oldY = player.getY();
+        double oldX =
+                player.getX();
 
+        double oldY =
+                player.getY();
+
+        double oldBottom =
+                oldY
+                        + GameConfig.PLAYER_HEIGHT;
+
+        /*
+         * =========================
+         * GRAVITY
+         * =========================
+         */
         if (!player.isChargingJump()) {
 
             player.setVelocityY(
@@ -45,6 +71,11 @@ public class PhysicsEngine {
                             * deltaTime);
         }
 
+        /*
+         * =========================
+         * POSITION X
+         * =========================
+         */
         double newX =
                 player.getX()
                         + player.getVelocityX()
@@ -57,6 +88,11 @@ public class PhysicsEngine {
                 map,
                 oldX);
 
+        /*
+         * =========================
+         * POSITION Y
+         * =========================
+         */
         double newY =
                 player.getY()
                         + player.getVelocityY()
@@ -66,15 +102,30 @@ public class PhysicsEngine {
 
         player.setOnGround(false);
 
+        /*
+         * =========================
+         * VERTICAL COLLISION
+         * =========================
+         */
         resolveVerticalCollision(
                 player,
                 map,
-                oldY);
+                oldY,
+                oldBottom);
 
+        /*
+         * =========================
+         * MAP BOUNDS
+         * =========================
+         */
         resolveMapBounds(
                 player,
                 map);
     }
+
+    // =====================================================
+    // HORIZONTAL COLLISION
+    // =====================================================
 
     private void resolveHorizontalCollision(
             PlayerState player,
@@ -101,30 +152,47 @@ public class PhysicsEngine {
             double size =
                     map.getCellSize();
 
-            if (null != type) switch (type) {
-                case SQUARE -> resolveSquareHorizontalCollision(
+            switch (type) {
+
+                case SQUARE -> {
+
+                    resolveSquareHorizontalCollision(
                             player,
                             oldX,
                             x,
                             y,
                             size);
-                case TRIANGLE_LEFT -> resolveTriangleLeftHorizontalCollision(
+                }
+
+                case TRIANGLE_LEFT -> {
+
+                    resolveTriangleLeftHorizontalCollision(
                             player,
                             oldX,
                             x,
                             y,
                             size);
-                case TRIANGLE_RIGHT -> resolveTriangleRightHorizontalCollision(
+                }
+
+                case TRIANGLE_RIGHT -> {
+
+                    resolveTriangleRightHorizontalCollision(
                             player,
                             oldX,
                             x,
                             y,
                             size);
+                }
+
                 default -> {
                 }
             }
         }
     }
+
+    // =====================================================
+    // SQUARE HORIZONTAL
+    // =====================================================
 
     private void resolveSquareHorizontalCollision(
             PlayerState player,
@@ -188,6 +256,10 @@ public class PhysicsEngine {
         }
     }
 
+    // =====================================================
+    // TRIANGLE LEFT HORIZONTAL
+    // =====================================================
+
     private void resolveTriangleLeftHorizontalCollision(
             PlayerState player,
             double oldX,
@@ -209,93 +281,18 @@ public class PhysicsEngine {
                 player.getY()
                         + GameConfig.PLAYER_HEIGHT;
 
-        /*
-         * TRIANGLE_LEFT có cạnh đứng ở bên phải.
-         *
-         * Cạnh đứng chỉ chặn phần không gian thực sự
-         * nằm bên trong triangle.
-         *
-         * Với triangle này:
-         *
-         *       (x, y + size)
-         *       |\
-         *       | \
-         *       |  \
-         *       |   \
-         *       |____\
-         *
-         * Cạnh đứng nằm tại x + size.
-         *
-         * Đường dốc:
-         *
-         *     surfaceY = y + size - relativeX
-         */
-
         if (playerBottom <= y
                 || playerTop >= y + size) {
 
             return;
         }
 
-        double centerX =
-                player.getX()
-                        + GameConfig.PLAYER_WIDTH / 2.0;
-
-        double centerY =
-                player.getY()
-                        + GameConfig.PLAYER_HEIGHT / 2.0;
-
-        if (centerX >= triangleRight) {
-
-            boolean crossed =
-                    oldX
-                            + GameConfig.PLAYER_WIDTH
-                            <= triangleRight
-                    &&
-                    player.getX()
-                            + GameConfig.PLAYER_WIDTH
-                            >= triangleRight;
-
-            if (crossed
-                    && centerY >= y) {
-
-                player.setX(
-                        triangleRight
-                                - GameConfig.PLAYER_WIDTH);
-
-                player.setVelocityX(
-                        -Math.abs(
-                                player.getVelocityX())
-                                * GameConfig.BOUND_RATIO);
-            }
-
-            return;
-        }
-
         /*
-         * Khi player đã ở bên trái cạnh đứng,
-         * không được để horizontal collision của
-         * triangle bắt nhầm vào phần rỗng phía trên
-         * mặt dốc.
-         *
-         * Chỉ xử lý nếu thân player thực sự giao với
-         * vùng đặc của triangle.
+         * Cạnh đứng bên phải của triangle.
          */
-
-        double clampedCenterX =
-                Math.max(
-                        x,
-                        Math.min(
-                                centerX,
-                                triangleRight));
-
-        double relativeX =
-                clampedCenterX - x;
-
-        double surfaceY =
-                y + size - relativeX;
-
-        if (centerY >= surfaceY) {
+        if (player.getX()
+                        + GameConfig.PLAYER_WIDTH
+                        > triangleRight) {
 
             boolean crossed =
                     oldX
@@ -317,8 +314,14 @@ public class PhysicsEngine {
                                 player.getVelocityX())
                                 * GameConfig.BOUND_RATIO);
             }
+
+            return;
         }
     }
+
+    // =====================================================
+    // TRIANGLE RIGHT HORIZONTAL
+    // =====================================================
 
     private void resolveTriangleRightHorizontalCollision(
             PlayerState player,
@@ -347,52 +350,11 @@ public class PhysicsEngine {
             return;
         }
 
-        double centerX =
-                player.getX()
-                        + GameConfig.PLAYER_WIDTH / 2.0;
-
-        double centerY =
-                player.getY()
-                        + GameConfig.PLAYER_HEIGHT / 2.0;
-
-        if (centerX <= triangleLeft) {
-
-            boolean crossed =
-                    oldX
-                            >= triangleLeft
-                    &&
-                    player.getX()
-                            <= triangleLeft;
-
-            if (crossed
-                    && centerY >= y) {
-
-                player.setX(
-                        triangleLeft);
-
-                player.setVelocityX(
-                        Math.abs(
-                                player.getVelocityX())
-                                * GameConfig.BOUND_RATIO);
-            }
-
-            return;
-        }
-
-        double clampedCenterX =
-                Math.max(
-                        triangleLeft,
-                        Math.min(
-                                centerX,
-                                x + size));
-
-        double relativeX =
-                clampedCenterX - x;
-
-        double surfaceY =
-                y + relativeX;
-
-        if (centerY >= surfaceY) {
+        /*
+         * Cạnh đứng bên trái của triangle.
+         */
+        if (player.getX()
+                        < triangleLeft) {
 
             boolean crossed =
                     oldX
@@ -411,13 +373,20 @@ public class PhysicsEngine {
                                 player.getVelocityX())
                                 * GameConfig.BOUND_RATIO);
             }
+
+            return;
         }
     }
+
+    // =====================================================
+    // VERTICAL COLLISION
+    // =====================================================
 
     private void resolveVerticalCollision(
             PlayerState player,
             MapData map,
-            double oldY) {
+            double oldY,
+            double oldBottom) {
 
         for (MapCellData cell : map.getCells()) {
 
@@ -439,30 +408,49 @@ public class PhysicsEngine {
             MapCellType type =
                     cell.getType();
 
-            if (null != type) switch (type) {
-                case SQUARE -> resolveSquareVerticalCollision(
+            switch (type) {
+
+                case SQUARE -> {
+
+                    resolveSquareVerticalCollision(
                             player,
                             oldY,
                             x,
                             y,
                             size);
-                case TRIANGLE_LEFT -> resolveTriangleLeftCollision(
+                }
+
+                case TRIANGLE_LEFT -> {
+
+                    resolveTriangleLeftCollision(
                             player,
                             oldY,
+                            oldBottom,
                             x,
                             y,
                             size);
-                case TRIANGLE_RIGHT -> resolveTriangleRightCollision(
+                }
+
+                case TRIANGLE_RIGHT -> {
+
+                    resolveTriangleRightCollision(
                             player,
                             oldY,
+                            oldBottom,
                             x,
                             y,
                             size);
+                }
+
                 default -> {
                 }
             }
         }
     }
+
+    // =====================================================
+    // SQUARE VERTICAL
+    // =====================================================
 
     private void resolveSquareVerticalCollision(
             PlayerState player,
@@ -483,6 +471,9 @@ public class PhysicsEngine {
             return;
         }
 
+        /*
+         * Rơi xuống.
+         */
         if (player.getVelocityY() > 0) {
 
             boolean crossedTop =
@@ -505,6 +496,9 @@ public class PhysicsEngine {
                 player.setOnGround(true);
             }
 
+        /*
+         * Bay lên.
+         */
         } else if (player.getVelocityY() < 0) {
 
             boolean crossedBottom =
@@ -524,42 +518,62 @@ public class PhysicsEngine {
         }
     }
 
+    // =====================================================
+    // TRIANGLE LEFT
+    // =====================================================
+
     private void resolveTriangleLeftCollision(
             PlayerState player,
             double oldY,
+            double oldBottom,
             double x,
             double y,
             double size) {
 
         /*
-         * Rơi xuống mặt dốc.
+         * =================================================
+         * RƠI XUỐNG DỐC
+         * =================================================
          */
+
         if (player.getVelocityY() > 0) {
 
-            double playerCenterX =
+            double centerX =
                     player.getX()
                             + GameConfig.PLAYER_WIDTH / 2.0;
 
-            if (playerCenterX < x
-                    || playerCenterX > x + size) {
+            if (centerX < x
+                    || centerX > x + size) {
 
                 return;
             }
 
             double relativeX =
-                    playerCenterX - x;
+                    centerX - x;
 
+            /*
+             * TRIANGLE_LEFT:
+             *
+             * surface:
+             *
+             * y + size - relativeX
+             *
+             * /
+             */
             double surfaceY =
                     y + size - relativeX;
-
-            double oldBottom =
-                    oldY
-                            + GameConfig.PLAYER_HEIGHT;
 
             double newBottom =
                     player.getY()
                             + GameConfig.PLAYER_HEIGHT;
 
+            /*
+             * Chỉ snap vào dốc nếu thực sự đi
+             * từ phía trên xuống.
+             *
+             * Đây là phần quan trọng chống
+             * xuyên dốc khi tốc độ rơi lớn.
+             */
             if (oldBottom <= surfaceY
                     && newBottom >= surfaceY) {
 
@@ -569,17 +583,27 @@ public class PhysicsEngine {
 
                 applyLeftSlopeVelocity(
                         player);
+
+                return;
             }
 
+            /*
+             * Nếu player đã nằm dưới mặt dốc
+             * ở tick trước nhưng vẫn còn trong
+             * vùng triangle, không được kéo ngược
+             * player lên dốc.
+             *
+             * Player tiếp tục đi xuống và rời dốc.
+             */
             return;
         }
 
         /*
-         * Bay từ dưới lên.
-         *
-         * Đáy triangle là một cạnh đặc.
-         * Không được xuyên qua đáy.
+         * =================================================
+         * BAY TỪ DƯỚI LÊN
+         * =================================================
          */
+
         if (player.getVelocityY() < 0) {
 
             boolean horizontalOverlap =
@@ -614,42 +638,58 @@ public class PhysicsEngine {
         }
     }
 
+    // =====================================================
+    // TRIANGLE RIGHT
+    // =====================================================
+
     private void resolveTriangleRightCollision(
             PlayerState player,
             double oldY,
+            double oldBottom,
             double x,
             double y,
             double size) {
 
         /*
-         * Rơi xuống mặt dốc.
+         * =================================================
+         * RƠI XUỐNG DỐC
+         * =================================================
          */
+
         if (player.getVelocityY() > 0) {
 
-            double playerCenterX =
+            double centerX =
                     player.getX()
                             + GameConfig.PLAYER_WIDTH / 2.0;
 
-            if (playerCenterX < x
-                    || playerCenterX > x + size) {
+            if (centerX < x
+                    || centerX > x + size) {
 
                 return;
             }
 
             double relativeX =
-                    playerCenterX - x;
+                    centerX - x;
 
+            /*
+             * TRIANGLE_RIGHT:
+             *
+             * surface:
+             *
+             * y + relativeX
+             *
+             * \
+             */
             double surfaceY =
                     y + relativeX;
-
-            double oldBottom =
-                    oldY
-                            + GameConfig.PLAYER_HEIGHT;
 
             double newBottom =
                     player.getY()
                             + GameConfig.PLAYER_HEIGHT;
 
+            /*
+             * Chống xuyên dốc khi rơi nhanh.
+             */
             if (oldBottom <= surfaceY
                     && newBottom >= surfaceY) {
 
@@ -659,17 +699,24 @@ public class PhysicsEngine {
 
                 applyRightSlopeVelocity(
                         player);
+
+                return;
             }
 
+            /*
+             * Không snap ngược player lên dốc
+             * nếu nó đã đi xuyên qua mặt dốc
+             * từ tick trước.
+             */
             return;
         }
 
         /*
-         * Bay từ dưới lên.
-         *
-         * Đáy triangle là một cạnh đặc.
-         * Không được xuyên qua đáy.
+         * =================================================
+         * BAY TỪ DƯỚI LÊN
+         * =================================================
          */
+
         if (player.getVelocityY() < 0) {
 
             boolean horizontalOverlap =
@@ -704,11 +751,16 @@ public class PhysicsEngine {
         }
     }
 
+    // =====================================================
+    // LEFT SLOPE MOVEMENT
+    // =====================================================
+
     private void applyLeftSlopeVelocity(
             PlayerState player) {
 
         double speed =
-                Math.abs(player.getVelocityY());
+                Math.abs(
+                        player.getVelocityY());
 
         if (speed < 1.0) {
 
@@ -719,22 +771,37 @@ public class PhysicsEngine {
 
         double slopeSpeed =
                 speed
-                        * 0.70710678118;
+                        * SLOPE_NORMAL;
 
+        /*
+         * TRIANGLE_LEFT:
+         *
+         * /
+         *
+         * Xuống dốc = trái + xuống.
+         */
         player.setVelocityX(
                 -slopeSpeed);
 
         player.setVelocityY(
                 slopeSpeed);
 
+        /*
+         * Không coi dốc là ground.
+         */
         player.setOnGround(false);
     }
+
+    // =====================================================
+    // RIGHT SLOPE MOVEMENT
+    // =====================================================
 
     private void applyRightSlopeVelocity(
             PlayerState player) {
 
         double speed =
-                Math.abs(player.getVelocityY());
+                Math.abs(
+                        player.getVelocityY());
 
         if (speed < 1.0) {
 
@@ -745,16 +812,30 @@ public class PhysicsEngine {
 
         double slopeSpeed =
                 speed
-                        * 0.70710678118;
+                        * SLOPE_NORMAL;
 
+        /*
+         * TRIANGLE_RIGHT:
+         *
+         * \
+         *
+         * Xuống dốc = phải + xuống.
+         */
         player.setVelocityX(
                 slopeSpeed);
 
         player.setVelocityY(
                 slopeSpeed);
 
+        /*
+         * Không coi dốc là ground.
+         */
         player.setOnGround(false);
     }
+
+    // =====================================================
+    // MAP BOUNDS
+    // =====================================================
 
     private void resolveMapBounds(
             PlayerState player,
