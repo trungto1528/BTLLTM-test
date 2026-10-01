@@ -51,7 +51,14 @@ public class PlayerSession {
                 new PlayerState(playerId);
 
         playerState.setX(180);
-        playerState.setY(1620);
+
+        /*
+         * Spawn trên floor của map01.
+         *
+         * Floor nằm tại y = 5960,
+         * player cao 30 nên top = 5930.
+         */
+        playerState.setY(5930);
 
         playerState.setOnGround(true);
 
@@ -69,6 +76,7 @@ public class PlayerSession {
     }
 
     public PlayerState getPlayerState() {
+
         return playerState;
     }
 
@@ -207,10 +215,12 @@ public class PlayerSession {
     // =====================================================
 
     public boolean isMovingLeft() {
+
         return movingLeft;
     }
 
     public boolean isMovingRight() {
+
         return movingRight;
     }
 
@@ -276,10 +286,12 @@ public class PlayerSession {
     public void startCharging() {
 
         if (!playerState.isOnGround()) {
+
             return;
         }
 
         if (playerState.isChargingJump()) {
+
             return;
         }
 
@@ -330,6 +342,7 @@ public class PlayerSession {
     public void tickCharge() {
 
         if (!playerState.isChargingJump()) {
+
             return;
         }
 
@@ -410,6 +423,7 @@ public class PlayerSession {
     public void releaseJump() {
 
         if (!playerState.isChargingJump()) {
+
             return;
         }
 
