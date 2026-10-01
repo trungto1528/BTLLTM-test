@@ -54,6 +54,19 @@ public class GameSceneMap {
                                             mapData.getWidth(),
                                             mapData.getHeight());
 
+                            if (mapData.getSpawn()
+                                    == null) {
+
+                                throw new IllegalStateException(
+                                        "Map spawn is missing");
+                            }
+
+                            scene.setMapSpawn(
+                                    mapData.getSpawn()
+                                            .getX(),
+                                    mapData.getSpawn()
+                                            .getY());
+
                             scene.getWorld()
                                     .getChildren()
                                     .addAll(

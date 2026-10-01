@@ -13,6 +13,7 @@ public class MapData {
     private final int width;
     private final int height;
     private final int cellSize;
+    private final MapSpawnData spawn;
     private final List<MapCellData> cells;
 
     public MapData(
@@ -20,7 +21,26 @@ public class MapData {
             int height,
             int cellSize) {
 
-        this(width, height, cellSize, null);
+        this(
+                width,
+                height,
+                cellSize,
+                null,
+                null);
+    }
+
+    public MapData(
+            int width,
+            int height,
+            int cellSize,
+            MapSpawnData spawn) {
+
+        this(
+                width,
+                height,
+                cellSize,
+                spawn,
+                null);
     }
 
     @JsonCreator
@@ -28,6 +48,7 @@ public class MapData {
             @JsonProperty("width") int width,
             @JsonProperty("height") int height,
             @JsonProperty("cellSize") int cellSize,
+            @JsonProperty("spawn") MapSpawnData spawn,
             @JsonProperty("cells") List<MapCellData> cells) {
 
         if (width <= 0) {
@@ -58,10 +79,12 @@ public class MapData {
         this.width = width;
         this.height = height;
         this.cellSize = cellSize;
+        this.spawn = spawn;
         this.cells = new ArrayList<>();
 
         if (cells != null) {
             for (MapCellData cell : cells) {
+
                 if (cell == null) {
                     throw new IllegalArgumentException(
                             "cells must not contain null");
@@ -106,6 +129,10 @@ public class MapData {
         return cellSize;
     }
 
+    public MapSpawnData getSpawn() {
+        return spawn;
+    }
+
     @JsonIgnore
     public int getColumns() {
         return width / cellSize;
@@ -116,7 +143,9 @@ public class MapData {
         return height / cellSize;
     }
 
-    public void addCell(MapCellData cell) {
+    public void addCell(
+            MapCellData cell) {
+
         if (cell == null) {
             throw new IllegalArgumentException(
                     "cell must not be null");
@@ -153,6 +182,7 @@ public class MapData {
             int gridY) {
 
         for (MapCellData cell : cells) {
+
             if (cell.getGridX() == gridX
                     && cell.getGridY() == gridY) {
 
