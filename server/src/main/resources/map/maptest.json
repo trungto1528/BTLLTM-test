@@ -3,7 +3,7 @@
   "name" : "Maptest",
   "width" : 800,
   "height" : 6000,
-  "cellSize" : 40,
+  "cellSize" : 16,
   "spawn" : {
     "x" : 665.6,
     "y" : 5940.0

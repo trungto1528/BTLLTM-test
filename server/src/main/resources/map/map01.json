@@ -3,7 +3,7 @@
   "name" : "Map 01",
   "width" : 800,
   "height" : 6000,
-  "cellSize" : 40,
+  "cellSize" : 16,
   "spawn" : {
     "x" : 180.0,
     "y" : 5930.0

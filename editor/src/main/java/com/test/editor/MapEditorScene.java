@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import com.test.common.map.MapCellData;
 import com.test.common.map.MapCellType;
 import com.test.common.map.MapData;
 import com.test.common.map.MapSpawnData;
@@ -28,7 +27,7 @@ public class MapEditorScene extends BorderPane {
 
     private static final int MAP_WIDTH = 800;
     private static final int MAP_HEIGHT = 6000;
-    private static final int CELL_SIZE = 40;
+    private static final int CELL_SIZE = 16;
 
     private final MapFileService mapFileService =
             new MapFileService();
@@ -45,6 +44,7 @@ public class MapEditorScene extends BorderPane {
 
     private MapData mapData;
     private MapCanvas mapCanvas;
+    private ScrollPane mapScrollPane;
 
     private String currentMapId;
     private String currentMapName;
@@ -168,6 +168,7 @@ public class MapEditorScene extends BorderPane {
         spawnButton.setSelected(false);
 
         if (mapCanvas != null) {
+
             mapCanvas =
                     createMapCanvas();
 
@@ -212,11 +213,36 @@ public class MapEditorScene extends BorderPane {
         return MapCellType.SQUARE;
     }
 
+    private void cycleSelectedCellType() {
+
+        if (emptyButton.isSelected()) {
+
+            squareButton.setSelected(true);
+
+        } else if (squareButton.isSelected()) {
+
+            triangleLeftButton.setSelected(true);
+
+        } else if (triangleLeftButton.isSelected()) {
+
+            triangleRightButton.setSelected(true);
+
+        } else {
+
+            squareButton.setSelected(true);
+        }
+
+        spawnButton.setSelected(false);
+
+        updateStatus();
+    }
+
     private MapCanvas createMapCanvas() {
 
         return new MapCanvas(
                 mapData,
                 this::getSelectedCellType,
+                this::cycleSelectedCellType,
                 spawnButton::isSelected,
                 this::updateSpawn,
                 this::updateStatus);
@@ -265,27 +291,32 @@ public class MapEditorScene extends BorderPane {
 
     private void createMapView() {
 
-        mapCanvas =
-                mapCanvas == null
-                        ? createMapCanvas()
-                        : mapCanvas;
+        if (mapScrollPane == null) {
 
-        ScrollPane scrollPane =
-                new ScrollPane();
+            mapScrollPane =
+                    new ScrollPane();
 
-        scrollPane.setContent(
+            mapScrollPane.setPannable(true);
+
+            mapScrollPane.setFitToWidth(false);
+            mapScrollPane.setFitToHeight(false);
+
+            VBox.setVgrow(
+                    mapScrollPane,
+                    Priority.ALWAYS);
+
+            setCenter(
+                    mapScrollPane);
+        }
+
+        if (mapCanvas == null) {
+
+            mapCanvas =
+                    createMapCanvas();
+        }
+
+        mapScrollPane.setContent(
                 mapCanvas);
-
-        scrollPane.setPannable(true);
-
-        scrollPane.setFitToWidth(false);
-        scrollPane.setFitToHeight(false);
-
-        VBox.setVgrow(
-                scrollPane,
-                Priority.ALWAYS);
-
-        setCenter(scrollPane);
     }
 
     private void createBottomBar() {
@@ -294,6 +325,7 @@ public class MapEditorScene extends BorderPane {
                 new Label(
                         "Chọn loại ô rồi nhấp để vẽ. "
                                 + "Chọn Empty để xóa ô. "
+                                + "Chuột phải để đổi loại block. "
                                 + "Chọn Set Spawn để đặt "
                                 + "điểm xuất phát.");
 
@@ -371,26 +403,12 @@ public class MapEditorScene extends BorderPane {
             return;
         }
 
-        MapData updatedMap =
-                new MapData(
-                        mapData.getWidth(),
-                        mapData.getHeight(),
-                        mapData.getCellSize(),
-                        spawn);
+        mapData.setSpawn(
+                spawn);
 
-        for (MapCellData cell
-                : mapData.getCells()) {
-
-            updatedMap.addCell(cell);
+        if (mapCanvas != null) {
+            mapCanvas.refresh();
         }
-
-        mapData =
-                updatedMap;
-
-        mapCanvas =
-                createMapCanvas();
-
-        createMapView();
 
         spawnButton.setSelected(false);
 
@@ -551,11 +569,9 @@ public class MapEditorScene extends BorderPane {
             mapNameField.setText(
                     currentMapName);
 
-            spawnButton.setSelected(
-                    false);
+            spawnButton.setSelected(false);
 
-            squareButton.setSelected(
-                    true);
+            squareButton.setSelected(true);
 
             mapCanvas =
                     createMapCanvas();

@@ -13,7 +13,7 @@ public class MapData {
     private final int width;
     private final int height;
     private final int cellSize;
-    private final MapSpawnData spawn;
+    private MapSpawnData spawn;
     private final List<MapCellData> cells;
 
     public MapData(
@@ -83,15 +83,20 @@ public class MapData {
         this.cells = new ArrayList<>();
 
         if (cells != null) {
-            for (MapCellData cell : cells) {
+
+            for (MapCellData cell
+                    : cells) {
 
                 if (cell == null) {
                     throw new IllegalArgumentException(
                             "cells must not contain null");
                 }
 
-                int gridX = cell.getGridX();
-                int gridY = cell.getGridY();
+                int gridX =
+                        cell.getGridX();
+
+                int gridY =
+                        cell.getGridY();
 
                 if (!isInsideBounds(
                         gridX,
@@ -136,6 +141,12 @@ public class MapData {
         return spawn;
     }
 
+    public void setSpawn(
+            MapSpawnData spawn) {
+
+        this.spawn = spawn;
+    }
+
     @JsonIgnore
     public int getColumns() {
         return width / cellSize;
@@ -154,8 +165,11 @@ public class MapData {
                     "cell must not be null");
         }
 
-        int gridX = cell.getGridX();
-        int gridY = cell.getGridY();
+        int gridX =
+                cell.getGridX();
+
+        int gridY =
+                cell.getGridY();
 
         if (!isInsideBounds(
                 gridX,
