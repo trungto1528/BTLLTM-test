@@ -1,7 +1,7 @@
 package com.test;
 
-import com.test.core.GameScene;
 import com.test.core.GameWebSocketClient;
+import com.test.core.scene.GameScene;
 import com.test.ui.CreateRoomView;
 import com.test.ui.FindRoomView;
 import com.test.ui.JoinRoomView;

@@ -8,6 +8,8 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
 
+import com.test.core.scene.GameScene;
+
 import javafx.application.Platform;
 
 public class GameWebSocketClient
@@ -273,6 +275,21 @@ public class GameWebSocketClient
 
                 scene.handleWorldState(
                         message);
+
+            } else if (message.startsWith(
+                    "PLAYER_LEFT|")) {
+
+                /*
+                 * PLAYER_LEFT được server gửi khi
+                 * một player rời phòng hoặc WebSocket
+                 * của player đó bị đóng.
+                 *
+                 * GameScene sẽ hiển thị indicator đỏ
+                 * phía trên remote player.
+                 */
+                Platform.runLater(
+                        () -> scene.handlePlayerLeft(
+                                message));
             }
         }
 
