@@ -1,13 +1,17 @@
 package com.test.common.map;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class MapInfo {
 
     private final String id;
     private final String name;
 
+    @JsonCreator
     public MapInfo(
-            String id,
-            String name) {
+            @JsonProperty("id") String id,
+            @JsonProperty("name") String name) {
 
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException(
