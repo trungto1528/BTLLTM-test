@@ -49,6 +49,21 @@ public class GameSceneMap {
                                 new GameMapLoader()
                                         .load(mapId);
 
+                        if (loadedMap == null) {
+
+                            throw new IllegalStateException(
+                                    "Loaded map is null: "
+                                            + mapId);
+                        }
+
+                        if (loadedMap.getSpawn()
+                                == null) {
+
+                            throw new IllegalStateException(
+                                    "Map spawn is missing: "
+                                            + mapId);
+                        }
+
                         Platform.runLater(() -> {
 
                             mapData =
@@ -61,14 +76,6 @@ public class GameSceneMap {
                                     .setPrefSize(
                                             mapData.getWidth(),
                                             mapData.getHeight());
-
-                            if (mapData.getSpawn()
-                                    == null) {
-
-                                throw new IllegalStateException(
-                                        "Map spawn is missing: "
-                                                + mapId);
-                            }
 
                             scene.setMapSpawn(
                                     mapData.getSpawn()
@@ -85,6 +92,18 @@ public class GameSceneMap {
 
                             scene.getCamera()
                                     .update();
+
+                            /*
+                             * Chỉ bắt đầu simulation sau khi:
+                             *
+                             * 1. Map đã load.
+                             * 2. Spawn đã được đặt.
+                             * 3. Map đã được render.
+                             *
+                             * Như vậy GameSceneSimulation sẽ
+                             * không chạy với MapData == null.
+                             */
+                            scene.startLoop();
                         });
 
                     } catch (Exception e) {
@@ -104,8 +123,19 @@ public class GameSceneMap {
                                     "Không thể tải bản đồ "
                                             + mapId);
 
+                            String message =
+                                    e.getMessage();
+
+                            if (message == null
+                                    || message.isBlank()) {
+
+                                message =
+                                        e.getClass()
+                                                .getSimpleName();
+                            }
+
                             alert.setContentText(
-                                    e.getMessage());
+                                    message);
 
                             alert.showAndWait();
                         });

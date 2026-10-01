@@ -1108,8 +1108,6 @@ public class GameApp extends Application {
                 // START LOOP
                 // =================================================
 
-                gameScene.startLoop();
-
                 scene.setRoot(
                                 gameContainer);
 
