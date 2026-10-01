@@ -32,10 +32,16 @@ public class ClientPlayerController {
         state =
                 new PlayerState(playerId);
 
-        state.setX(180);
-        state.setY(1620);
+        /*
+         * Không hard-code spawn tại đây.
+         *
+         * Spawn thực tế được lấy từ MapData
+         * sau khi client tải map từ server.
+         */
+        state.setX(0);
+        state.setY(0);
 
-        state.setOnGround(true);
+        state.setOnGround(false);
 
         state.setFacingDirection(1);
 
@@ -599,10 +605,5 @@ public class ClientPlayerController {
             state.setJumpPower(0);
         }
 
-        /*
-         * Nếu cả LEFT và RIGHT cùng đang được giữ,
-         * PhysicsEngine sẽ xử lý trạng thái này
-         * theo logic authoritative hiện tại.
-         */
     }
 }
