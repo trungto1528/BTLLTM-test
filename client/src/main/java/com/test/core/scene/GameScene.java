@@ -7,7 +7,13 @@ import com.test.core.GameWebSocketClient;
 import com.test.core.Player;
 
 import javafx.application.Platform;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 
@@ -40,6 +46,32 @@ public class GameScene extends Pane {
     private final GameSceneMap map;
     private final GameSceneCamera camera;
 
+    /*
+     * =====================================================
+     * PAUSE UI
+     * =====================================================
+     */
+
+    private final StackPane pauseOverlay =
+            new StackPane();
+
+    private final VBox pausePanel =
+            new VBox();
+
+    private final Label pauseTitle =
+            new Label("PAUSED");
+
+    private final Label heightLabel =
+            new Label();
+
+    private final Button continueButton =
+            new Button("Continue");
+
+    private final Button backButton =
+            new Button("Back");
+
+    private boolean pauseVisible;
+
     public GameScene(
             GameWebSocketClient network,
             String mapId) {
@@ -53,21 +85,20 @@ public class GameScene extends Pane {
                     "mapId must not be blank");
         }
 
-        this.mapId =
-                mapId;
+        this.mapId = mapId;
 
         setPrefSize(
                 VIEW_WIDTH,
                 VIEW_HEIGHT);
 
+        /*
+         * World nằm bên dưới.
+         */
         getChildren().add(
                 world);
 
         /*
-         * Player được tạo tạm thời tại 0, 0.
-         *
-         * Vị trí thật sẽ được lấy từ
-         * map data sau khi load xong.
+         * Player tạm thời tại 0,0.
          */
         player =
                 new Player(
@@ -90,6 +121,9 @@ public class GameScene extends Pane {
         world.getChildren().add(
                 player);
 
+        /*
+         * Jump bar.
+         */
         jumpBarBackground.setFill(
                 Color.GRAY);
 
@@ -120,6 +154,14 @@ public class GameScene extends Pane {
         camera =
                 new GameSceneCamera(this);
 
+        /*
+         * Pause overlay phải nằm ngoài world.
+         *
+         * Vì world bị camera translateY,
+         * overlay không được đặt bên trong world.
+         */
+        setupPauseOverlay();
+
         input.setup();
 
         map.loadAsync(
@@ -130,6 +172,272 @@ public class GameScene extends Pane {
         Platform.runLater(
                 this::requestFocus);
     }
+
+    // =====================================================
+    // PAUSE OVERLAY
+    // =====================================================
+
+    private void setupPauseOverlay() {
+
+        pauseOverlay.setPrefSize(
+                VIEW_WIDTH,
+                VIEW_HEIGHT);
+
+        pauseOverlay.setVisible(false);
+        pauseOverlay.setManaged(false);
+
+        /*
+         * Overlay toàn màn hình.
+         *
+         * Background mờ để vẫn nhìn thấy
+         * player và map phía sau.
+         */
+        Rectangle dim =
+                new Rectangle(
+                        VIEW_WIDTH,
+                        VIEW_HEIGHT);
+
+        dim.setFill(
+                Color.rgb(
+                        0,
+                        0,
+                        0,
+                        0.55));
+
+        pauseOverlay.getChildren().add(
+                dim);
+
+        /*
+         * Panel.
+         */
+        pausePanel.setAlignment(
+                Pos.CENTER);
+
+        pausePanel.setSpacing(
+                18);
+
+        pausePanel.setPadding(
+                new Insets(
+                        30,
+                        45,
+                        30,
+                        45));
+
+        pausePanel.setMaxWidth(
+                300);
+
+        pausePanel.setStyle(
+                "-fx-background-color: rgba(30, 30, 35, 0.96);"
+                        + "-fx-background-radius: 14;"
+                        + "-fx-border-color: rgba(255,255,255,0.20);"
+                        + "-fx-border-radius: 14;");
+
+        /*
+         * Title.
+         */
+        pauseTitle.setStyle(
+                "-fx-text-fill: white;"
+                        + "-fx-font-size: 28px;"
+                        + "-fx-font-weight: bold;");
+
+        /*
+         * Height.
+         */
+        heightLabel.setStyle(
+                "-fx-text-fill: white;"
+                        + "-fx-font-size: 16px;");
+
+        /*
+         * Continue.
+         */
+        continueButton.setPrefWidth(
+                190);
+
+        continueButton.setPrefHeight(
+                40);
+
+        continueButton.setStyle(
+                "-fx-font-size: 15px;");
+
+        continueButton.setOnAction(
+                event -> resumeGame());
+
+        /*
+         * Back.
+         */
+        backButton.setPrefWidth(
+                190);
+
+        backButton.setPrefHeight(
+                40);
+
+        backButton.setStyle(
+                "-fx-font-size: 15px;");
+
+        backButton.setOnAction(
+                event -> backToMenu());
+
+        pausePanel.getChildren().addAll(
+                pauseTitle,
+                heightLabel,
+                continueButton,
+                backButton);
+
+        pauseOverlay.getChildren().add(
+                pausePanel);
+
+        StackPane.setAlignment(
+                pausePanel,
+                Pos.CENTER);
+
+        getChildren().add(
+                pauseOverlay);
+    }
+
+    // =====================================================
+    // PAUSE
+    // =====================================================
+
+    public void togglePause() {
+
+        if (pauseVisible) {
+
+            resumeGame();
+
+        } else {
+
+            pauseGame();
+        }
+    }
+
+    public void pauseGame() {
+
+        if (pauseVisible) {
+            return;
+        }
+
+        pauseVisible = true;
+
+        input.resetKeys();
+
+        simulation.setPaused(true);
+
+        updateHeightLabel();
+
+        pauseOverlay.setVisible(true);
+        pauseOverlay.setManaged(true);
+
+        pauseOverlay.toFront();
+
+        continueButton.requestFocus();
+    }
+
+    // =====================================================
+    // RESUME
+    // =====================================================
+
+    public void resumeGame() {
+
+        if (!pauseVisible) {
+            return;
+        }
+
+        pauseVisible = false;
+
+        /*
+         * Khi resume, simulation sẽ lấy
+         * authoritative server state mới nhất
+         * nếu snapshot đã đến trong lúc pause.
+         */
+        simulation.setPaused(false);
+
+        pauseOverlay.setVisible(false);
+        pauseOverlay.setManaged(false);
+
+        requestFocus();
+    }
+
+    // =====================================================
+    // BACK
+    // =====================================================
+
+    private void backToMenu() {
+
+        pauseVisible = false;
+
+        input.resetKeys();
+
+        simulation.setPaused(true);
+
+        /*
+         * Không tạo protocol mới.
+         *
+         * GameApp đã xử lý:
+         *
+         * ROOM_LEFT -> Main Menu
+         */
+        network.send(
+                "LEAVE_ROOM");
+    }
+
+    // =====================================================
+    // HEIGHT
+    // =====================================================
+
+    private void updateHeightLabel() {
+
+        MapData mapData =
+                getMapData();
+
+        if (mapData == null) {
+
+            heightLabel.setText(
+                    "Height: --");
+
+            return;
+        }
+
+        /*
+         * Sàn map là mặt trên của
+         * cell cuối cùng:
+         *
+         * height - cellSize
+         */
+        double floorY =
+                mapData.getHeight()
+                        - mapData.getCellSize();
+
+        /*
+         * Player Y là tọa độ top.
+         *
+         * Độ cao tính từ chân player
+         * tới mặt sàn.
+         */
+        double playerBottom =
+                player.getY()
+                        + player.getHeight();
+
+        double height =
+                floorY
+                        - playerBottom;
+
+        if (height < 0) {
+            height = 0;
+        }
+
+        heightLabel.setText(
+                String.format(
+                        "Height: %.0f px",
+                        height));
+    }
+
+    public boolean isPaused() {
+        return pauseVisible;
+    }
+
+    // =====================================================
+    // BASIC GETTERS
+    // =====================================================
 
     public String getMapId() {
 
@@ -146,7 +454,8 @@ public class GameScene extends Pane {
         controller.getState().setX(x);
         controller.getState().setY(y);
 
-        controller.getState().setOnGround(true);
+        controller.getState().setOnGround(
+                true);
 
         controller.getState().setVelocityX(0);
         controller.getState().setVelocityY(0);
@@ -218,6 +527,10 @@ public class GameScene extends Pane {
         return camera;
     }
 
+    // =====================================================
+    // NETWORK EVENTS
+    // =====================================================
+
     public void handleWorldState(
             String message) {
 
@@ -239,10 +552,18 @@ public class GameScene extends Pane {
                 message);
     }
 
+    // =====================================================
+    // LOOP
+    // =====================================================
+
     public void startLoop() {
 
         simulation.startLoop();
     }
+
+    // =====================================================
+    // JUMP BAR
+    // =====================================================
 
     public void updateJumpBar() {
 

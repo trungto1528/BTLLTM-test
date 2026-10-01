@@ -30,6 +30,13 @@ public class GameSceneSimulation {
 
     private boolean loopStarted;
 
+    /*
+     * Local pause.
+     *
+     * Không liên quan đến server.
+     */
+    private boolean paused;
+
     private long pendingServerTick = -1;
 
     private GameSceneNetwork.RemoteSnapshot pendingServerSnapshot;
@@ -75,7 +82,44 @@ public class GameSceneSimulation {
                 true;
 
         loopStarted = false;
+
+        paused = false;
     }
+
+    // =====================================================
+    // PAUSE
+    // =====================================================
+
+    public boolean isPaused() {
+
+        return paused;
+    }
+
+    public void setPaused(
+            boolean paused) {
+
+        if (this.paused == paused) {
+            return;
+        }
+
+        this.paused = paused;
+
+        if (!paused) {
+
+            /*
+             * Khi resume, đồng bộ ngay với
+             * snapshot server mới nhất nếu
+             * snapshot đã tới trong lúc pause.
+             */
+            tryApplyPendingServerState();
+
+            resetLocalRenderInterpolation();
+        }
+    }
+
+    // =====================================================
+    // BASIC
+    // =====================================================
 
     public long getClientTick() {
 
@@ -86,6 +130,10 @@ public class GameSceneSimulation {
 
         return loopStarted;
     }
+
+    // =====================================================
+    // INPUT
+    // =====================================================
 
     public int queueInput(
             String action) {
@@ -119,14 +167,30 @@ public class GameSceneSimulation {
     public int sendInput(
             String action) {
 
+        /*
+         * Không queue input gameplay mới
+         * trong pause.
+         */
+        if (paused) {
+            return inputSequence;
+        }
+
         return queueInput(action);
     }
 
     public int sendJumpRelease() {
 
+        if (paused) {
+            return inputSequence;
+        }
+
         return queueInput(
                 "JUMP_RELEASE");
     }
+
+    // =====================================================
+    // SERVER RECONCILIATION
+    // =====================================================
 
     public void reconcileLocalPlayer(
             long serverTick,
@@ -140,7 +204,9 @@ public class GameSceneSimulation {
                 scene.getRemotePlayers()
                         .getLastServerSequence();
 
-        if (snapshot.sequence <= lastServerSequence) {
+        if (snapshot.sequence
+                <= lastServerSequence) {
+
             return;
         }
 
@@ -155,13 +221,11 @@ public class GameSceneSimulation {
                                 <= snapshot.sequence);
 
         /*
-         * Luôn nhận trạng thái authoritative
-         * mới nhất từ server.
+         * Luôn nhận authoritative state
+         * từ server.
          *
-         * Nếu map chưa load hoặc simulation
-         * chưa bắt đầu thì chưa replay input.
-         * Snapshot sẽ được lưu lại để xử lý
-         * sau khi map sẵn sàng.
+         * Tuy nhiên nếu đang pause thì chỉ
+         * lưu state để resume dùng.
          */
         scene.getController()
                 .applyServerState(
@@ -185,6 +249,14 @@ public class GameSceneSimulation {
         pendingServerSnapshot =
                 snapshot;
 
+        if (paused) {
+
+            /*
+             * Không replay trong lúc pause.
+             */
+            return;
+        }
+
         if (!loopStarted) {
 
             resetLocalRenderInterpolation();
@@ -206,16 +278,28 @@ public class GameSceneSimulation {
                 serverTick);
     }
 
+    // =====================================================
+    // REPLAY
+    // =====================================================
+
     private void replayFromServerState(
             long serverTick) {
+
+        if (paused) {
+            return;
+        }
 
         long targetClientTick =
                 clientTick;
 
-        if (targetClientTick <= serverTick) {
+        if (targetClientTick
+                <= serverTick) {
 
-            if (clientTick < serverTick) {
-                clientTick = serverTick;
+            if (clientTick
+                    < serverTick) {
+
+                clientTick =
+                        serverTick;
             }
 
             resetLocalRenderInterpolation();
@@ -227,20 +311,24 @@ public class GameSceneSimulation {
         }
 
         /*
-         * Server snapshot là trạng thái tại
-         * serverTick.
+         * Replay input từ:
          *
-         * Replay toàn bộ input của client
-         * từ serverTick + 1 đến clientTick.
+         * serverTick + 1
+         *
+         * tới:
+         *
+         * clientTick
          */
-        for (long tick = serverTick + 1;
-             tick <= targetClientTick;
-             tick++) {
+        for (long tick =
+                serverTick + 1;
+                tick <= targetClientTick;
+                tick++) {
 
             for (PendingInput pending
                     : pendingInputs) {
 
-                if (pending.tick == tick) {
+                if (pending.tick
+                        == tick) {
 
                     scene.getController()
                             .applyInput(
@@ -259,6 +347,10 @@ public class GameSceneSimulation {
         pendingServerSnapshot = null;
     }
 
+    // =====================================================
+    // PENDING SERVER STATE
+    // =====================================================
+
     private void tryApplyPendingServerState() {
 
         if (pendingServerSnapshot == null) {
@@ -273,6 +365,14 @@ public class GameSceneSimulation {
             return;
         }
 
+        /*
+         * Nếu đang pause thì không apply
+         * prediction tại đây.
+         */
+        if (paused) {
+            return;
+        }
+
         long serverTick =
                 pendingServerTick;
 
@@ -282,6 +382,10 @@ public class GameSceneSimulation {
         replayFromServerState(
                 serverTick);
     }
+
+    // =====================================================
+    // RENDER INTERPOLATION
+    // =====================================================
 
     private void resetLocalRenderInterpolation() {
 
@@ -323,7 +427,8 @@ public class GameSceneSimulation {
         for (PendingInput pending
                 : pendingInputs) {
 
-            if (pending.tick == tick) {
+            if (pending.tick
+                    == tick) {
 
                 scene.getController()
                         .applyInput(
@@ -430,19 +535,16 @@ public class GameSceneSimulation {
                                 .isOnGround());
     }
 
+    // =====================================================
+    // START LOOP
+    // =====================================================
+
     public void startLoop() {
 
         if (loopStarted) {
             return;
         }
 
-        /*
-         * Không cho simulation chạy nếu map
-         * chưa sẵn sàng.
-         *
-         * GameSceneMap hiện tại gọi startLoop()
-         * sau khi map đã load và render xong.
-         */
         if (scene.getMapData() == null) {
             return;
         }
@@ -477,52 +579,72 @@ public class GameSceneSimulation {
                             frameDelta = 0.25;
                         }
 
-                        tickAccumulator +=
-                                frameDelta;
-
-                        int ticksThisFrame = 0;
-
-                        while (tickAccumulator
-                                        >= GameConfig.TICK_DT
-                                && ticksThisFrame
-                                        < MAX_TICKS_PER_FRAME) {
-
-                            clientTick++;
-
-                            beginLocalSimulationTick();
-
-                            applyInputsForTick(
-                                    clientTick);
-
-                            scene.getController()
-                                    .tick(
-                                            scene.getMapData());
-
-                            finishLocalSimulationTick();
-
-                            tickAccumulator -=
-                                    GameConfig.TICK_DT;
-
-                            ticksThisFrame++;
-                        }
-
-                        if (ticksThisFrame
-                                        >= MAX_TICKS_PER_FRAME
-                                && tickAccumulator
-                                        >= GameConfig.TICK_DT) {
-
-                            tickAccumulator = 0;
-                        }
-
-                        syncLocalVisual();
-
+                        /*
+                         * =================================
+                         * REMOTE PLAYERS
+                         * =================================
+                         *
+                         * Luôn chạy, kể cả khi local
+                         * player đang pause.
+                         */
                         scene.getRemotePlayers()
                                 .updateRemotePlayers();
 
-                        scene.getCamera()
-                                .update();
+                        /*
+                         * =================================
+                         * LOCAL SIMULATION
+                         * =================================
+                         */
+                        if (!paused) {
 
-                        scene.updateJumpBar();
+                            tickAccumulator +=
+                                    frameDelta;
+
+                            int ticksThisFrame = 0;
+
+                            while (tickAccumulator
+                                            >= GameConfig.TICK_DT
+                                    && ticksThisFrame
+                                            < MAX_TICKS_PER_FRAME) {
+
+                                clientTick++;
+
+                                beginLocalSimulationTick();
+
+                                applyInputsForTick(
+                                        clientTick);
+
+                                scene.getController()
+                                        .tick(
+                                                scene.getMapData());
+
+                                finishLocalSimulationTick();
+
+                                tickAccumulator -=
+                                        GameConfig.TICK_DT;
+
+                                ticksThisFrame++;
+                            }
+
+                            if (ticksThisFrame
+                                            >= MAX_TICKS_PER_FRAME
+                                    && tickAccumulator
+                                            >= GameConfig.TICK_DT) {
+
+                                tickAccumulator = 0;
+                            }
+
+                            syncLocalVisual();
+
+                            /*
+                             * Camera chỉ bám local player
+                             * khi đang chơi.
+                             */
+                            scene.getCamera()
+                                    .update();
+
+                            scene.updateJumpBar();
+                        }
                     }
                 };
 
