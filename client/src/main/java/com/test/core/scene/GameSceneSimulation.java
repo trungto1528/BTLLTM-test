@@ -6,6 +6,7 @@ import java.util.List;
 import com.test.common.GameConfig;
 import com.test.common.InputCommand;
 import com.test.common.PlayerState;
+import com.test.common.map.MapData;
 import com.test.core.Player;
 
 import javafx.animation.AnimationTimer;
@@ -17,18 +18,21 @@ public class GameSceneSimulation {
     private final GameScene scene;
 
     private int inputSequence = 0;
-
     private long clientTick = 0;
-
     private double tickAccumulator = 0;
 
     private double previousLocalX;
     private double previousLocalY;
-
     private double currentLocalX;
     private double currentLocalY;
 
     private boolean localRenderInitialized;
+
+    private boolean loopStarted;
+
+    private long pendingServerTick = -1;
+
+    private GameSceneNetwork.RemoteSnapshot pendingServerSnapshot;
 
     private final List<PendingInput> pendingInputs =
             new ArrayList<>();
@@ -36,7 +40,6 @@ public class GameSceneSimulation {
     private static class PendingInput {
 
         private final InputCommand command;
-
         private final long tick;
 
         private PendingInput(
@@ -70,10 +73,18 @@ public class GameSceneSimulation {
 
         localRenderInitialized =
                 true;
+
+        loopStarted = false;
     }
 
     public long getClientTick() {
+
         return clientTick;
+    }
+
+    public boolean isLoopStarted() {
+
+        return loopStarted;
     }
 
     public int queueInput(
@@ -121,18 +132,17 @@ public class GameSceneSimulation {
             long serverTick,
             GameSceneNetwork.RemoteSnapshot snapshot) {
 
+        if (snapshot == null) {
+            return;
+        }
+
         int lastServerSequence =
                 scene.getRemotePlayers()
                         .getLastServerSequence();
 
-        if (snapshot.sequence
-                <= lastServerSequence) {
-
+        if (snapshot.sequence <= lastServerSequence) {
             return;
         }
-
-        long targetClientTick =
-                clientTick;
 
         scene.getRemotePlayers()
                 .setLastServerSequence(
@@ -140,9 +150,19 @@ public class GameSceneSimulation {
 
         pendingInputs.removeIf(
                 input ->
-                        input.command.getSequence()
+                        input.command
+                                .getSequence()
                                 <= snapshot.sequence);
 
+        /*
+         * Luôn nhận trạng thái authoritative
+         * mới nhất từ server.
+         *
+         * Nếu map chưa load hoặc simulation
+         * chưa bắt đầu thì chưa replay input.
+         * Snapshot sẽ được lưu lại để xử lý
+         * sau khi map sẵn sàng.
+         */
         scene.getController()
                 .applyServerState(
                         snapshot.x,
@@ -159,22 +179,63 @@ public class GameSceneSimulation {
                         snapshot.movingLeft,
                         snapshot.movingRight);
 
-        if (targetClientTick
-                <= serverTick) {
+        pendingServerTick =
+                serverTick;
 
-            if (clientTick < serverTick) {
+        pendingServerSnapshot =
+                snapshot;
 
-                clientTick =
-                        serverTick;
-            }
+        if (!loopStarted) {
 
             resetLocalRenderInterpolation();
 
             return;
         }
 
-        for (long tick =
-                     serverTick + 1;
+        MapData map =
+                scene.getMapData();
+
+        if (map == null) {
+
+            resetLocalRenderInterpolation();
+
+            return;
+        }
+
+        replayFromServerState(
+                serverTick,
+                snapshot);
+    }
+
+    private void replayFromServerState(
+            long serverTick,
+            GameSceneNetwork.RemoteSnapshot snapshot) {
+
+        long targetClientTick =
+                clientTick;
+
+        if (targetClientTick <= serverTick) {
+
+            if (clientTick < serverTick) {
+                clientTick = serverTick;
+            }
+
+            resetLocalRenderInterpolation();
+
+            pendingServerTick = -1;
+            pendingServerSnapshot = null;
+
+            return;
+        }
+
+        /*
+         * Server snapshot là trạng thái tại
+         * serverTick.
+         *
+         * Replay toàn bộ input của client
+         * từ serverTick + 1 đến clientTick.
+         */
+        for (long tick = serverTick + 1;
              tick <= targetClientTick;
              tick++) {
 
@@ -195,6 +256,37 @@ public class GameSceneSimulation {
         }
 
         resetLocalRenderInterpolation();
+
+        pendingServerTick = -1;
+        pendingServerSnapshot = null;
+    }
+
+    private void tryApplyPendingServerState() {
+
+        if (pendingServerSnapshot == null) {
+            return;
+        }
+
+        if (!loopStarted) {
+            return;
+        }
+
+        if (scene.getMapData() == null) {
+            return;
+        }
+
+        GameSceneNetwork.RemoteSnapshot snapshot =
+                pendingServerSnapshot;
+
+        long serverTick =
+                pendingServerTick;
+
+        pendingServerSnapshot = null;
+        pendingServerTick = -1;
+
+        replayFromServerState(
+                serverTick,
+                snapshot);
     }
 
     private void resetLocalRenderInterpolation() {
@@ -332,12 +424,10 @@ public class GameSceneSimulation {
                                 * alpha;
 
         scene.getPlayer()
-                .setX(
-                        renderX);
+                .setX(renderX);
 
         scene.getPlayer()
-                .setY(
-                        renderY);
+                .setY(renderY);
 
         scene.getPlayer()
                 .setOnGround(
@@ -347,6 +437,25 @@ public class GameSceneSimulation {
     }
 
     public void startLoop() {
+
+        if (loopStarted) {
+            return;
+        }
+
+        /*
+         * Không cho simulation chạy nếu map
+         * chưa sẵn sàng.
+         *
+         * GameSceneMap hiện tại gọi startLoop()
+         * sau khi map đã load và render xong.
+         */
+        if (scene.getMapData() == null) {
+            return;
+        }
+
+        loopStarted = true;
+
+        tryApplyPendingServerState();
 
         AnimationTimer timer =
                 new AnimationTimer() {
@@ -371,7 +480,6 @@ public class GameSceneSimulation {
                         lastTime = now;
 
                         if (frameDelta > 0.25) {
-
                             frameDelta = 0.25;
                         }
 
@@ -405,7 +513,7 @@ public class GameSceneSimulation {
                         }
 
                         if (ticksThisFrame
-                                >= MAX_TICKS_PER_FRAME
+                                        >= MAX_TICKS_PER_FRAME
                                 && tickAccumulator
                                         >= GameConfig.TICK_DT) {
 
