@@ -53,7 +53,7 @@ public class MapCanvas extends Canvas {
 
         private void setupMouseHandling() {
 
-                setOnMouseClicked(event -> {
+                setOnMousePressed(event -> {
 
                         if (event.getButton() != MouseButton.PRIMARY) {
 
@@ -143,57 +143,65 @@ public class MapCanvas extends Canvas {
                         double y,
                         double size) {
 
+                graphics.setFill(
+                                Color.DARKGRAY);
+
                 switch (type) {
 
-                        case SQUARE -> {
-                            graphics.setFill(
-                                    Color.DARKGRAY);
-                            
-                            graphics.fillRect(
-                                    x,
-                                    y,
-                                    size,
-                                    size);
-                }
+                        case SQUARE:
 
-                        case TRIANGLE_LEFT -> {
-                            graphics.setFill(
-                                    Color.DARKGRAY);
-                            
-                            graphics.fillPolygon(
-                                    new double[] {
-                                        x,
-                                        x + size,
-                                        x
-                                    },
-                                    new double[] {
-                                        y,
-                                        y + size,
-                                        y + size
-                                    },
-                                    3);
-                }
+                                graphics.fillRect(
+                                                x,
+                                                y,
+                                                size,
+                                                size);
 
-                        case TRIANGLE_RIGHT -> {
-                            graphics.setFill(
-                                    Color.DARKGRAY);
-                            
-                            graphics.fillPolygon(
-                                    new double[] {
-                                        x,
-                                        x + size,
-                                        x + size
-                                    },
-                                    new double[] {
-                                        y,
-                                        y,
-                                        y + size
-                                    },
-                                    3);
-                }
+                                break;
 
-                        case EMPTY -> {
-                }
+                        case TRIANGLE_LEFT:
+
+                                graphics.beginPath();
+
+                                graphics.moveTo(
+                                                x + size,
+                                                y + size);
+
+                                graphics.lineTo(
+                                                x + size,
+                                                y);
+
+                                graphics.lineTo(
+                                                x,
+                                                y + size);
+
+                                graphics.closePath();
+
+                                graphics.fill();
+
+                                break;
+
+                        case TRIANGLE_RIGHT:
+
+                                graphics.beginPath();
+
+                                graphics.moveTo(
+                                                x,
+                                                y);
+                                graphics.lineTo(
+                                                x + size,
+                                                y + size);
+                                graphics.lineTo(
+                                                x,
+                                                y + size);
+                                graphics.closePath();
+
+                                graphics.fill();
+
+                                break;
+
+                        case EMPTY:
+
+                                break;
                 }
         }
 
