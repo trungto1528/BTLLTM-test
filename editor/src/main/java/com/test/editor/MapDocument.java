@@ -1,5 +1,6 @@
-
 package com.test.editor;
+
+import java.util.UUID;
 
 import com.test.common.map.MapData;
 
@@ -23,5 +24,12 @@ public record MapDocument(
             throw new IllegalArgumentException(
                     "mapData must not be null");
         }
+    }
+
+    public static String generateId() {
+        return "map-"
+                + UUID.randomUUID()
+                        .toString()
+                        .replace("-", "");
     }
 }

@@ -8,7 +8,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,6 +22,9 @@ import com.test.common.map.MapSpawnData;
 @Component
 public class MapRepository {
 
+    private static final String MAP_RESOURCE_PATTERN =
+            "classpath*:map/*.json";
+
     private final Map<String, MapData> maps =
             new LinkedHashMap<>();
 
@@ -30,9 +34,7 @@ public class MapRepository {
     public MapRepository(
             ObjectMapper objectMapper) {
 
-        loadMap(
-                objectMapper,
-                "map/map01.json");
+        loadMaps(objectMapper);
     }
 
     public MapData getMap(
@@ -42,6 +44,7 @@ public class MapRepository {
                 maps.get(mapId);
 
         if (map == null) {
+
             throw new IllegalArgumentException(
                     "Map not found: "
                             + mapId);
@@ -57,83 +60,164 @@ public class MapRepository {
                         mapInfos.values()));
     }
 
-    private void loadMap(
-            ObjectMapper objectMapper,
-            String resourcePath) {
+    private void loadMaps(
+            ObjectMapper objectMapper) {
+
+        PathMatchingResourcePatternResolver resolver =
+                new PathMatchingResourcePatternResolver();
 
         try {
 
-            ClassPathResource resource =
-                    new ClassPathResource(
-                            resourcePath);
+            Resource[] resources =
+                    resolver.getResources(
+                            MAP_RESOURCE_PATTERN);
 
-            try (InputStream inputStream =
-                    resource.getInputStream()) {
+            if (resources.length == 0) {
 
-                MapFile mapFile =
-                        objectMapper.readValue(
-                                inputStream,
-                                MapFile.class);
-
-                validateSpawn(
-                        mapFile);
-
-                MapData map =
-                        new MapData(
-                                mapFile.width(),
-                                mapFile.height(),
-                                mapFile.cellSize(),
-                                mapFile.spawn());
-
-                addCells(
-                        map,
-                        mapFile.square(),
-                        MapCellType.SQUARE);
-
-                addCells(
-                        map,
-                        mapFile.triangleLeft(),
-                        MapCellType.TRIANGLE_LEFT);
-
-                addCells(
-                        map,
-                        mapFile.triangleRight(),
-                        MapCellType.TRIANGLE_RIGHT);
-
-                if (maps.containsKey(
-                        mapFile.id())) {
-
-                    throw new IllegalArgumentException(
-                            "Duplicate map id: "
-                                    + mapFile.id());
-                }
-
-                maps.put(
-                        mapFile.id(),
-                        map);
-
-                mapInfos.put(
-                        mapFile.id(),
-                        new MapInfo(
-                                mapFile.id(),
-                                mapFile.name()));
+                throw new IllegalStateException(
+                        "No map files found: "
+                                + MAP_RESOURCE_PATTERN);
             }
 
-        } catch (IOException e) {
+            for (Resource resource : resources) {
+
+                loadMap(
+                        objectMapper,
+                        resource);
+            }
+
+        } catch (IOException exception) {
 
             throw new IllegalStateException(
-                    "Failed to load map: "
-                            + resourcePath,
-                    e);
+                    "Failed to scan map resources",
+                    exception);
         }
     }
 
+    private void loadMap(
+            ObjectMapper objectMapper,
+            Resource resource) {
+
+        String resourceDescription =
+                resource.getDescription();
+
+        try (InputStream inputStream =
+                resource.getInputStream()) {
+
+            MapFile mapFile =
+                    objectMapper.readValue(
+                            inputStream,
+                            MapFile.class);
+
+            validateMapFile(
+                    mapFile,
+                    resourceDescription);
+
+            if (maps.containsKey(
+                    mapFile.id())) {
+
+                throw new IllegalArgumentException(
+                        "Duplicate map id: "
+                                + mapFile.id()
+                                + " in "
+                                + resourceDescription);
+            }
+
+            MapData map =
+                    new MapData(
+                            mapFile.width(),
+                            mapFile.height(),
+                            mapFile.cellSize(),
+                            mapFile.spawn());
+
+            addCells(
+                    map,
+                    mapFile.square(),
+                    MapCellType.SQUARE);
+
+            addCells(
+                    map,
+                    mapFile.triangleLeft(),
+                    MapCellType.TRIANGLE_LEFT);
+
+            addCells(
+                    map,
+                    mapFile.triangleRight(),
+                    MapCellType.TRIANGLE_RIGHT);
+
+            maps.put(
+                    mapFile.id(),
+                    map);
+
+            mapInfos.put(
+                    mapFile.id(),
+                    new MapInfo(
+                            mapFile.id(),
+                            mapFile.name()));
+
+        } catch (IOException exception) {
+
+            throw new IllegalStateException(
+                    "Failed to load map: "
+                            + resourceDescription,
+                    exception);
+        }
+    }
+
+    private void validateMapFile(
+            MapFile mapFile,
+            String resourceDescription) {
+
+        if (mapFile == null) {
+
+            throw new IllegalArgumentException(
+                    "Map file is null: "
+                            + resourceDescription);
+        }
+
+        if (mapFile.id() == null
+                || mapFile.id().isBlank()) {
+
+            throw new IllegalArgumentException(
+                    "Map id must not be blank: "
+                            + resourceDescription);
+        }
+
+        if (mapFile.name() == null
+                || mapFile.name().isBlank()) {
+
+            throw new IllegalArgumentException(
+                    "Map name must not be blank: "
+                            + resourceDescription);
+        }
+
+        if (mapFile.width() <= 0
+                || mapFile.height() <= 0
+                || mapFile.cellSize() <= 0
+                || mapFile.width()
+                        % mapFile.cellSize() != 0
+                || mapFile.height()
+                        % mapFile.cellSize() != 0) {
+
+            throw new IllegalArgumentException(
+                    "Invalid map dimensions or cell size: "
+                            + resourceDescription);
+        }
+
+        validateSpawn(
+                mapFile,
+                resourceDescription);
+    }
+
     private void validateSpawn(
-            MapFile mapFile) {
+            MapFile mapFile,
+            String resourceDescription) {
 
         if (mapFile.spawn() == null) {
+
             throw new IllegalArgumentException(
-                    "Map spawn must not be null");
+                    "Map spawn must not be null: "
+                            + resourceDescription);
         }
 
         double x =
@@ -147,7 +231,9 @@ public class MapRepository {
 
             throw new IllegalArgumentException(
                     "Spawn x is outside map bounds: "
-                            + x);
+                            + x
+                            + " in "
+                            + resourceDescription);
         }
 
         if (y < 0
@@ -155,7 +241,9 @@ public class MapRepository {
 
             throw new IllegalArgumentException(
                     "Spawn y is outside map bounds: "
-                            + y);
+                            + y
+                            + " in "
+                            + resourceDescription);
         }
     }
 
@@ -172,7 +260,9 @@ public class MapRepository {
                 : coordinates) {
 
             if (coordinate == null
-                    || coordinate.size() != 2) {
+                    || coordinate.size() != 2
+                    || coordinate.get(0) == null
+                    || coordinate.get(1) == null) {
 
                 throw new IllegalArgumentException(
                         "Invalid map coordinate: "
@@ -196,9 +286,9 @@ public class MapRepository {
                                 + gridY);
             }
 
-            if (map.getCell(
+            if (map.hasCell(
                     gridX,
-                    gridY) != null) {
+                    gridY)) {
 
                 throw new IllegalArgumentException(
                         "Duplicate map cell: "
