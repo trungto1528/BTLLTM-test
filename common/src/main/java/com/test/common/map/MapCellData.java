@@ -1,7 +1,7 @@
-
 package com.test.common.map;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class MapCellData {
@@ -38,10 +38,12 @@ public class MapCellData {
         return type;
     }
 
+    @JsonIgnore
     public boolean isEmpty() {
         return type == MapCellType.EMPTY;
     }
 
+    @JsonIgnore
     public boolean hasCollision() {
         return type != MapCellType.EMPTY;
     }

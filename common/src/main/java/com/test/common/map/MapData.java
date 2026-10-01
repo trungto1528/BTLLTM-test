@@ -1,4 +1,3 @@
-
 package com.test.common.map;
 
 import java.util.ArrayList;
@@ -6,6 +5,7 @@ import java.util.Collections;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class MapData {
@@ -67,7 +67,10 @@ public class MapData {
                             "cells must not contain null");
                 }
 
-                if (!isInside(cell.getGridX(), cell.getGridY())) {
+                if (!isInside(
+                        cell.getGridX(),
+                        cell.getGridY())) {
+
                     throw new IllegalArgumentException(
                             "Cell is outside map bounds: "
                                     + cell.getGridX()
@@ -75,7 +78,10 @@ public class MapData {
                                     + cell.getGridY());
                 }
 
-                if (getCell(cell.getGridX(), cell.getGridY()) != null) {
+                if (getCell(
+                        cell.getGridX(),
+                        cell.getGridY()) != null) {
+
                     throw new IllegalArgumentException(
                             "Duplicate map cell: "
                                     + cell.getGridX()
@@ -100,10 +106,12 @@ public class MapData {
         return cellSize;
     }
 
+    @JsonIgnore
     public int getColumns() {
         return width / cellSize;
     }
 
+    @JsonIgnore
     public int getRows() {
         return height / cellSize;
     }
@@ -114,12 +122,18 @@ public class MapData {
                     "cell must not be null");
         }
 
-        if (!isInside(cell.getGridX(), cell.getGridY())) {
+        if (!isInside(
+                cell.getGridX(),
+                cell.getGridY())) {
+
             throw new IllegalArgumentException(
                     "Cell is outside map bounds");
         }
 
-        if (getCell(cell.getGridX(), cell.getGridY()) != null) {
+        if (getCell(
+                cell.getGridX(),
+                cell.getGridY()) != null) {
+
             throw new IllegalArgumentException(
                     "Duplicate map cell: "
                             + cell.getGridX()
@@ -134,10 +148,14 @@ public class MapData {
         return Collections.unmodifiableList(cells);
     }
 
-    public MapCellData getCell(int gridX, int gridY) {
+    public MapCellData getCell(
+            int gridX,
+            int gridY) {
+
         for (MapCellData cell : cells) {
             if (cell.getGridX() == gridX
                     && cell.getGridY() == gridY) {
+
                 return cell;
             }
         }
@@ -145,7 +163,10 @@ public class MapData {
         return null;
     }
 
-    public boolean isInside(int gridX, int gridY) {
+    public boolean isInside(
+            int gridX,
+            int gridY) {
+
         return gridX >= 0
                 && gridX < getColumns()
                 && gridY >= 0
