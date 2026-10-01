@@ -1,5 +1,15 @@
 package com.test;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.Arrays;
+import java.util.List;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.test.common.map.MapInfo;
 import com.test.core.GameWebSocketClient;
 import com.test.core.scene.GameScene;
 import com.test.ui.CreateRoomView;
@@ -19,6 +29,12 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 
 public class GameApp extends Application {
+
+        private static final String MAP_API_URL = "http://localhost:8080/api/maps";
+
+        private final HttpClient httpClient = HttpClient.newHttpClient();
+
+        private final ObjectMapper objectMapper = new ObjectMapper();
 
         private Stage stage;
 
@@ -204,7 +220,82 @@ public class GameApp extends Application {
 
                 scene.setRoot(lobby);
 
+                /*
+                 * Lobby cần danh sách map.
+                 *
+                 * Gọi REST API ngay khi vào Lobby.
+                 */
+                loadMaps();
+
                 lobby.requestFocus();
+        }
+
+        // =====================================================
+        // LOAD MAPS
+        // =====================================================
+
+        private void loadMaps() {
+
+                HttpRequest request = HttpRequest.newBuilder()
+                                .uri(URI.create(
+                                                MAP_API_URL))
+                                .GET()
+                                .build();
+
+                httpClient.sendAsync(
+                                request,
+                                HttpResponse.BodyHandlers.ofString())
+                                .thenAccept(
+                                                response -> {
+
+                                                        if (response.statusCode() != 200) {
+
+                                                                Platform.runLater(
+                                                                                () -> lobby.setError(
+                                                                                                "Cannot load maps: HTTP "
+                                                                                                                + response.statusCode()));
+
+                                                                return;
+                                                        }
+
+                                                        try {
+
+                                                                MapInfo[] maps = objectMapper.readValue(
+                                                                                response.body(),
+                                                                                MapInfo[].class);
+
+                                                                List<MapInfo> mapList = Arrays.asList(
+                                                                                maps);
+
+                                                                Platform.runLater(
+                                                                                () -> {
+
+                                                                                        lobby.setMaps(
+                                                                                                        mapList);
+
+                                                                                        lobby.setMap(
+                                                                                                        currentMapId);
+
+                                                                                        lobby.setHost(
+                                                                                                        currentHost);
+                                                                                });
+
+                                                        } catch (JsonProcessingException exception) {
+
+                                                                Platform.runLater(
+                                                                                () -> lobby.setError(
+                                                                                                "Cannot read map list"));
+                                                        }
+                                                })
+                                .exceptionally(
+                                                exception -> {
+
+                                                        Platform.runLater(
+                                                                        () -> lobby.setError(
+                                                                                        "Cannot connect to map server"));
+
+                                                        return null;
+                                                });
         }
 
         // =====================================================
@@ -241,6 +332,34 @@ public class GameApp extends Application {
         }
 
         // =====================================================
+        // CHANGE MAP
+        // =====================================================
+
+        public void changeMap(
+                        String mapId) {
+
+                if (!currentHost) {
+                        return;
+                }
+
+                if (currentRoomId == null
+                                || currentRoomId.isBlank()) {
+
+                        return;
+                }
+
+                if (mapId == null
+                                || mapId.isBlank()) {
+
+                        return;
+                }
+
+                network.send(
+                                "CHANGE_MAP|"
+                                                + mapId);
+        }
+
+        // =====================================================
         // JOIN
         // =====================================================
 
@@ -267,11 +386,6 @@ public class GameApp extends Application {
 
         public void startGame() {
 
-                /*
-                 * Client không tự chuyển GameScene.
-                 *
-                 * Chờ GAME_STARTED từ server.
-                 */
                 network.send(
                                 "START_GAME");
 
@@ -313,10 +427,6 @@ public class GameApp extends Application {
                                 "[APP] "
                                                 + message);
 
-                // =================================================
-                // WELCOME
-                // =================================================
-
                 if (message.startsWith(
                                 "WELCOME|")) {
 
@@ -325,10 +435,6 @@ public class GameApp extends Application {
 
                         return;
                 }
-
-                // =================================================
-                // ROOM CREATED
-                // =================================================
 
                 if (message.startsWith(
                                 "ROOM_CREATED|")) {
@@ -339,10 +445,6 @@ public class GameApp extends Application {
                         return;
                 }
 
-                // =================================================
-                // ROOM JOINED
-                // =================================================
-
                 if (message.startsWith(
                                 "ROOM_JOINED|")) {
 
@@ -351,10 +453,6 @@ public class GameApp extends Application {
 
                         return;
                 }
-
-                // =================================================
-                // ROOM STATE
-                // =================================================
 
                 if (message.startsWith(
                                 "ROOM_STATE|")) {
@@ -365,10 +463,6 @@ public class GameApp extends Application {
                         return;
                 }
 
-                // =================================================
-                // ROOM LIST
-                // =================================================
-
                 if (message.startsWith(
                                 "ROOM_LIST|")) {
 
@@ -378,10 +472,6 @@ public class GameApp extends Application {
                         return;
                 }
 
-                // =================================================
-                // ROOM LIST END
-                // =================================================
-
                 if ("ROOM_LIST_END".equals(message)) {
 
                         Platform.runLater(
@@ -389,10 +479,6 @@ public class GameApp extends Application {
 
                         return;
                 }
-
-                // =================================================
-                // ROOM ERROR
-                // =================================================
 
                 if (message.startsWith(
                                 "ROOM_ERROR|")) {
@@ -403,10 +489,6 @@ public class GameApp extends Application {
                         return;
                 }
 
-                // =================================================
-                // ROOM LEFT
-                // =================================================
-
                 if (message.startsWith(
                                 "ROOM_LEFT|")) {
 
@@ -414,10 +496,6 @@ public class GameApp extends Application {
 
                         return;
                 }
-
-                // =================================================
-                // PLAYER LEFT
-                // =================================================
 
                 if (message.startsWith(
                                 "PLAYER_LEFT|")) {
@@ -428,10 +506,6 @@ public class GameApp extends Application {
                         return;
                 }
 
-                // =================================================
-                // GAME STARTED
-                // =================================================
-
                 if (message.startsWith(
                                 "GAME_STARTED|")) {
 
@@ -441,16 +515,11 @@ public class GameApp extends Application {
                         return;
                 }
 
-                // =================================================
-                // CONNECTION ERROR
-                // =================================================
-
                 if (message.startsWith(
                                 "CONNECTION_ERROR|")) {
 
                         System.err.println(
                                         message);
-
                 }
         }
 
@@ -461,10 +530,8 @@ public class GameApp extends Application {
         private void handleWelcome(
                         String message) {
 
-                String playerId = message.substring(
+                localPlayerId = message.substring(
                                 "WELCOME|".length());
-
-                localPlayerId = playerId;
 
                 System.out.println(
                                 "Local player ID: "
@@ -478,12 +545,6 @@ public class GameApp extends Application {
         private void handleRoomCreated(
                         String message) {
 
-                /*
-                 * Protocol:
-                 *
-                 * ROOM_CREATED|roomId|mapId
-                 */
-
                 String[] parts = message.split("\\|");
 
                 if (parts.length < 3) {
@@ -495,18 +556,14 @@ public class GameApp extends Application {
                         return;
                 }
 
-                String roomId = parts[1];
+                currentRoomId = parts[1];
 
-                String mapId = parts[2];
-
-                currentRoomId = roomId;
-
-                currentMapId = mapId;
+                currentMapId = parts[2];
 
                 currentHost = true;
 
                 showLobby(
-                                roomId,
+                                currentRoomId,
                                 true);
         }
 
@@ -516,12 +573,6 @@ public class GameApp extends Application {
 
         private void handleRoomJoined(
                         String message) {
-
-                /*
-                 * Protocol:
-                 *
-                 * ROOM_JOINED|roomId|mapId
-                 */
 
                 String[] parts = message.split("\\|");
 
@@ -534,23 +585,14 @@ public class GameApp extends Application {
                         return;
                 }
 
-                String roomId = parts[1];
+                currentRoomId = parts[1];
 
-                String mapId = parts[2];
+                currentMapId = parts[2];
 
-                currentRoomId = roomId;
-
-                currentMapId = mapId;
-
-                /*
-                 * Chưa tự đoán host.
-                 *
-                 * ROOM_STATE sẽ cung cấp HOST_ID.
-                 */
                 currentHost = false;
 
                 showLobby(
-                                roomId,
+                                currentRoomId,
                                 false);
         }
 
@@ -560,12 +602,6 @@ public class GameApp extends Application {
 
         private void handleRoomState(
                         String message) {
-
-                /*
-                 * Protocol:
-                 *
-                 * ROOM_STATE|roomId|count|max|hostId|mapId
-                 */
 
                 String[] parts = message.split("\\|");
 
@@ -581,7 +617,6 @@ public class GameApp extends Application {
                 String roomId = parts[1];
 
                 int playerCount;
-
                 int maxPlayers;
 
                 String hostId = parts[4];
@@ -605,12 +640,9 @@ public class GameApp extends Application {
                         return;
                 }
 
-                /*
-                 * Nếu đang ở một room khác thì
-                 * không nhận ROOM_STATE đó.
-                 */
                 if (currentRoomId != null
-                                && !currentRoomId.equals(roomId)) {
+                                && !currentRoomId.equals(
+                                                roomId)) {
 
                         return;
                 }
@@ -623,77 +655,41 @@ public class GameApp extends Application {
                                 && localPlayerId.equals(
                                                 hostId);
 
-                /*
-                 * Nếu đang trong GameScene thì
-                 * không được đưa client về Lobby.
-                 *
-                 * ROOM_STATE lúc này chỉ dùng để
-                 * cập nhật room information.
-                 */
                 if (gameScene != null
                                 && scene.getRoot() == gameContainer) {
 
                         return;
                 }
 
-                /*
-                 * Nếu chưa ở Lobby thì vào Lobby.
-                 */
-                if (!isLobbyShowing()) {
+                final String finalRoomId = roomId;
 
-                        final String finalRoomId = roomId;
+                final String finalMapId = mapId;
 
-                        final String finalMapId = mapId;
+                final int finalPlayerCount = playerCount;
 
-                        final int finalPlayerCount = playerCount;
+                final int finalMaxPlayers = maxPlayers;
 
-                        final int finalMaxPlayers = maxPlayers;
+                final boolean finalHost = currentHost;
 
-                        final boolean finalHost = currentHost;
+                Platform.runLater(
+                                () -> {
 
-                        Platform.runLater(
-                                        () -> {
+                                        currentMapId = finalMapId;
 
-                                                currentMapId = finalMapId;
+                                        showLobby(
+                                                        finalRoomId,
+                                                        finalHost);
 
-                                                showLobby(
-                                                                finalRoomId,
-                                                                finalHost);
+                                        lobby.setPlayers(
+                                                        finalPlayerCount,
+                                                        finalMaxPlayers);
 
-                                                lobby.setPlayers(
-                                                                finalPlayerCount,
-                                                                finalMaxPlayers);
+                                        lobby.setMap(
+                                                        finalMapId);
 
-                                                lobby.setHost(
-                                                                finalHost);
-                                        });
-
-                } else {
-
-                        final String finalMapId = mapId;
-
-                        final int finalPlayerCount = playerCount;
-
-                        final int finalMaxPlayers = maxPlayers;
-
-                        final boolean finalHost = currentHost;
-
-                        Platform.runLater(
-                                        () -> {
-
-                                                currentMapId = finalMapId;
-
-                                                lobby.setRoomId(
-                                                                roomId);
-
-                                                lobby.setPlayers(
-                                                                finalPlayerCount,
-                                                                finalMaxPlayers);
-
-                                                lobby.setHost(
-                                                                finalHost);
-                                        });
-                }
+                                        lobby.setHost(
+                                                        finalHost);
+                                });
         }
 
         // =====================================================
@@ -703,10 +699,8 @@ public class GameApp extends Application {
         private void handleRoomList(
                         String message) {
 
-                /*
-                 * ROOM_LIST|EMPTY
-                 */
-                if ("ROOM_LIST|EMPTY".equals(message)) {
+                if ("ROOM_LIST|EMPTY".equals(
+                                message)) {
 
                         Platform.runLater(
                                         () -> findRoom.showEmpty());
@@ -714,16 +708,6 @@ public class GameApp extends Application {
                         return;
                 }
 
-                /*
-                 * Protocol:
-                 *
-                 * ROOM_LIST|
-                 * roomId|
-                 * currentPlayers|
-                 * maxPlayers|
-                 * OPEN|
-                 * mapId
-                 */
                 String[] parts = message.split("\\|");
 
                 if (parts.length < 6) {
@@ -738,7 +722,6 @@ public class GameApp extends Application {
                 String roomId = parts[1];
 
                 int currentPlayers;
-
                 int maxPlayers;
 
                 try {
@@ -762,13 +745,6 @@ public class GameApp extends Application {
 
                 final int finalMaxPlayers = maxPlayers;
 
-                /*
-                 * Tạm thời FindRoomView vẫn nhận
-                 * 3 tham số như code cũ.
-                 *
-                 * mapId sẽ được dùng ở bước sửa
-                 * FindRoomView tiếp theo.
-                 */
                 Platform.runLater(
                                 () -> findRoom.addRoom(
                                                 roomId,
@@ -813,11 +789,6 @@ public class GameApp extends Application {
 
         private void handleRoomLeft() {
 
-                /*
-                 * Chỉ client vừa gửi LEAVE_ROOM
-                 * mới nhận ROOM_LEFT.
-                 */
-
                 currentRoomId = null;
 
                 currentMapId = null;
@@ -844,24 +815,9 @@ public class GameApp extends Application {
         private void handlePlayerLeft(
                         String message) {
 
-                /*
-                 * Protocol:
-                 *
-                 * PLAYER_LEFT|
-                 * roomId|
-                 * playerId|
-                 * wasHost|
-                 * newHostId
-                 */
-
                 String[] parts = message.split("\\|");
 
                 if (parts.length < 5) {
-
-                        System.err.println(
-                                        "Invalid PLAYER_LEFT: "
-                                                        + message);
-
                         return;
                 }
 
@@ -874,22 +830,13 @@ public class GameApp extends Application {
 
                 String newHostId = parts[4];
 
-                /*
-                 * Chỉ xử lý người cùng room.
-                 */
                 if (currentRoomId == null
-                                || !currentRoomId.equals(roomId)) {
+                                || !currentRoomId.equals(
+                                                roomId)) {
 
                         return;
                 }
 
-                /*
-                 * Nếu đang trong game:
-                 *
-                 * - không về Lobby
-                 * - không dừng trận
-                 * - chỉ hiện thông báo
-                 */
                 if (gameScene != null
                                 && scene.getRoot() == gameContainer) {
 
@@ -924,12 +871,6 @@ public class GameApp extends Application {
                         return;
                 }
 
-                /*
-                 * Nếu chưa vào game thì chỉ cập nhật
-                 * host hiện tại.
-                 *
-                 * ROOM_STATE sẽ cập nhật số người.
-                 */
                 currentHost = localPlayerId != null
                                 && localPlayerId.equals(
                                                 newHostId);
@@ -942,20 +883,9 @@ public class GameApp extends Application {
         private void handleGameStarted(
                         String message) {
 
-                /*
-                 * Protocol:
-                 *
-                 * GAME_STARTED|roomId|mapId
-                 */
-
                 String[] parts = message.split("\\|");
 
                 if (parts.length < 3) {
-
-                        System.err.println(
-                                        "Invalid GAME_STARTED: "
-                                                        + message);
-
                         return;
                 }
 
@@ -963,10 +893,6 @@ public class GameApp extends Application {
 
                 String mapId = parts[2];
 
-                /*
-                 * Chỉ chuyển game nếu đúng room
-                 * hiện tại.
-                 */
                 if (currentRoomId == null
                                 || !currentRoomId.equals(
                                                 roomId)) {
@@ -975,12 +901,6 @@ public class GameApp extends Application {
                 }
 
                 currentMapId = mapId;
-
-                System.out.println(
-                                "Game started: "
-                                                + roomId
-                                                + " | map="
-                                                + mapId);
 
                 Platform.runLater(
                                 this::openGameScene);
@@ -992,9 +912,6 @@ public class GameApp extends Application {
 
         private void openGameScene() {
 
-                /*
-                 * Tránh tạo GameScene nhiều lần.
-                 */
                 if (gameScene != null) {
                         return;
                 }
@@ -1012,30 +929,15 @@ public class GameApp extends Application {
                                 network,
                                 currentMapId);
 
-                /*
-                 * Truyền player ID server cấp.
-                 */
                 if (localPlayerId != null) {
 
                         gameScene.setLocalPlayerId(
                                         localPlayerId);
                 }
 
-                /*
-                 * WebSocket chuyển WORLD_STATE
-                 * vào GameScene.
-                 */
                 network.setGameScene(
                                 gameScene);
 
-                /*
-                 * =================================================
-                 * GAME CONTAINER
-                 * =================================================
-                 *
-                 * GameScene nằm dưới.
-                 * Toast nằm trên.
-                 */
                 gameContainer = new StackPane();
 
                 gameContainer.setPrefSize(
@@ -1044,10 +946,6 @@ public class GameApp extends Application {
 
                 gameContainer.getChildren().add(
                                 gameScene);
-
-                // =================================================
-                // DEPARTURE TOAST
-                // =================================================
 
                 departureToast = new Label();
 
@@ -1099,15 +997,12 @@ public class GameApp extends Application {
                 departureToastTimer.setOnFinished(
                                 event -> hideDepartureToast());
 
-                // =================================================
-                // START LOOP
-                // =================================================
-
                 scene.setRoot(
                                 gameContainer);
 
                 gameScene.requestFocus();
         }
+
         // =====================================================
         // SHOW DEPARTURE TOAST
         // =====================================================
@@ -1197,14 +1092,6 @@ public class GameApp extends Application {
 
         @Override
         public void stop() {
-
-                /*
-                 * Không gửi LEAVE_ROOM ở đây.
-                 *
-                 * Khi application đóng,
-                 * WebSocket disconnect sẽ khiến server
-                 * tự cleanup PlayerSession / Room.
-                 */
         }
 
         // =====================================================

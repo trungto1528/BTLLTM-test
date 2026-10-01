@@ -141,30 +141,28 @@ public class MapCanvas extends Canvas {
         graphics.setFill(Color.DARKGRAY);
 
         switch (type) {
-            case SQUARE:
-                graphics.fillRect(x, y, size, size);
-                break;
+            case SQUARE -> graphics.fillRect(x, y, size, size);
 
-            case TRIANGLE_LEFT:
+            case TRIANGLE_LEFT -> {
                 graphics.beginPath();
                 graphics.moveTo(x + size, y + size);
                 graphics.lineTo(x + size, y);
                 graphics.lineTo(x, y + size);
                 graphics.closePath();
                 graphics.fill();
-                break;
+            }
 
-            case TRIANGLE_RIGHT:
+            case TRIANGLE_RIGHT -> {
                 graphics.beginPath();
                 graphics.moveTo(x, y);
                 graphics.lineTo(x + size, y + size);
                 graphics.lineTo(x, y + size);
                 graphics.closePath();
                 graphics.fill();
-                break;
+            }
 
-            case EMPTY:
-                break;
+            case EMPTY -> {
+            }
         }
     }
 

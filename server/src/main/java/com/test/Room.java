@@ -11,7 +11,8 @@ public class Room {
 
     private final String roomId;
     private final int maxPlayers;
-    private final String mapId;
+
+    private volatile String mapId;
 
     private final ConcurrentMap<String, PlayerSession> players =
             new ConcurrentHashMap<>();
@@ -25,8 +26,7 @@ public class Room {
         this(
                 roomId,
                 DEFAULT_MAX_PLAYERS,
-                DEFAULT_MAP_ID
-        );
+                DEFAULT_MAP_ID);
     }
 
     public Room(
@@ -38,23 +38,20 @@ public class Room {
                 || roomId.isBlank()) {
 
             throw new IllegalArgumentException(
-                    "roomId must not be blank"
-            );
+                    "roomId must not be blank");
         }
 
         if (maxPlayers <= 0) {
 
             throw new IllegalArgumentException(
-                    "maxPlayers must be greater than 0"
-            );
+                    "maxPlayers must be greater than 0");
         }
 
         if (mapId == null
                 || mapId.isBlank()) {
 
             throw new IllegalArgumentException(
-                    "mapId must not be blank"
-            );
+                    "mapId must not be blank");
         }
 
         this.roomId = roomId;
@@ -111,6 +108,29 @@ public class Room {
     }
 
     // =====================================================
+    // MAP
+    // =====================================================
+
+    public synchronized boolean setMapId(
+            String mapId) {
+
+        if (started) {
+
+            return false;
+        }
+
+        if (mapId == null
+                || mapId.isBlank()) {
+
+            return false;
+        }
+
+        this.mapId = mapId;
+
+        return true;
+    }
+
+    // =====================================================
     // HOST
     // =====================================================
 
@@ -136,8 +156,7 @@ public class Room {
                 || !players.containsKey(playerId)) {
 
             throw new IllegalArgumentException(
-                    "Host must be a player in this room"
-            );
+                    "Host must be a player in this room");
         }
 
         hostPlayerId = playerId;
@@ -198,8 +217,7 @@ public class Room {
 
         players.put(
                 playerId,
-                player
-        );
+                player);
 
         if (hostPlayerId == null) {
 
