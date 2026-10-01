@@ -1,8 +1,12 @@
+
 package com.test.common.map;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class MapData {
 
@@ -15,6 +19,16 @@ public class MapData {
             int width,
             int height,
             int cellSize) {
+
+        this(width, height, cellSize, null);
+    }
+
+    @JsonCreator
+    public MapData(
+            @JsonProperty("width") int width,
+            @JsonProperty("height") int height,
+            @JsonProperty("cellSize") int cellSize,
+            @JsonProperty("cells") List<MapCellData> cells) {
 
         if (width <= 0) {
             throw new IllegalArgumentException(
@@ -31,10 +45,47 @@ public class MapData {
                     "cellSize must be positive");
         }
 
+        if (width % cellSize != 0) {
+            throw new IllegalArgumentException(
+                    "width must be divisible by cellSize");
+        }
+
+        if (height % cellSize != 0) {
+            throw new IllegalArgumentException(
+                    "height must be divisible by cellSize");
+        }
+
         this.width = width;
         this.height = height;
         this.cellSize = cellSize;
         this.cells = new ArrayList<>();
+
+        if (cells != null) {
+            for (MapCellData cell : cells) {
+                if (cell == null) {
+                    throw new IllegalArgumentException(
+                            "cells must not contain null");
+                }
+
+                if (!isInside(cell.getGridX(), cell.getGridY())) {
+                    throw new IllegalArgumentException(
+                            "Cell is outside map bounds: "
+                                    + cell.getGridX()
+                                    + ", "
+                                    + cell.getGridY());
+                }
+
+                if (getCell(cell.getGridX(), cell.getGridY()) != null) {
+                    throw new IllegalArgumentException(
+                            "Duplicate map cell: "
+                                    + cell.getGridX()
+                                    + ", "
+                                    + cell.getGridY());
+                }
+
+                this.cells.add(cell);
+            }
+        }
     }
 
     public int getWidth() {
@@ -57,31 +108,36 @@ public class MapData {
         return height / cellSize;
     }
 
-    public void addCell(
-            MapCellData cell) {
-
+    public void addCell(MapCellData cell) {
         if (cell == null) {
             throw new IllegalArgumentException(
                     "cell must not be null");
+        }
+
+        if (!isInside(cell.getGridX(), cell.getGridY())) {
+            throw new IllegalArgumentException(
+                    "Cell is outside map bounds");
+        }
+
+        if (getCell(cell.getGridX(), cell.getGridY()) != null) {
+            throw new IllegalArgumentException(
+                    "Duplicate map cell: "
+                            + cell.getGridX()
+                            + ", "
+                            + cell.getGridY());
         }
 
         cells.add(cell);
     }
 
     public List<MapCellData> getCells() {
-        return Collections.unmodifiableList(
-                cells);
+        return Collections.unmodifiableList(cells);
     }
 
-    public MapCellData getCell(
-            int gridX,
-            int gridY) {
-
+    public MapCellData getCell(int gridX, int gridY) {
         for (MapCellData cell : cells) {
-
             if (cell.getGridX() == gridX
                     && cell.getGridY() == gridY) {
-
                 return cell;
             }
         }
@@ -89,10 +145,7 @@ public class MapData {
         return null;
     }
 
-    public boolean isInside(
-            int gridX,
-            int gridY) {
-
+    public boolean isInside(int gridX, int gridY) {
         return gridX >= 0
                 && gridX < getColumns()
                 && gridY >= 0

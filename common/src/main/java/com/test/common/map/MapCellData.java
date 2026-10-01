@@ -1,4 +1,8 @@
+
 package com.test.common.map;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class MapCellData {
 
@@ -6,10 +10,11 @@ public class MapCellData {
     private final int gridY;
     private final MapCellType type;
 
+    @JsonCreator
     public MapCellData(
-            int gridX,
-            int gridY,
-            MapCellType type) {
+            @JsonProperty("gridX") int gridX,
+            @JsonProperty("gridY") int gridY,
+            @JsonProperty("type") MapCellType type) {
 
         if (type == null) {
             throw new IllegalArgumentException(
