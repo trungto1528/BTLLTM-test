@@ -2,8 +2,6 @@ package com.test.editor;
 
 import javafx.application.Application;
 import javafx.scene.Scene;
-import javafx.scene.control.Label;
-import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 
 public class MapEditorApp extends Application {
@@ -14,15 +12,12 @@ public class MapEditorApp extends Application {
     @Override
     public void start(Stage stage) {
 
-        Label label =
-                new Label("LTM Map Editor");
-
-        StackPane root =
-                new StackPane(label);
+        MapEditorScene editorScene =
+                new MapEditorScene();
 
         Scene scene =
                 new Scene(
-                        root,
+                        editorScene,
                         WINDOW_WIDTH,
                         WINDOW_HEIGHT);
 
