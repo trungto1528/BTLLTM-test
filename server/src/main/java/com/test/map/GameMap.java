@@ -1,12 +1,10 @@
-package com.test.map;
 
-import org.springframework.stereotype.Component;
+package com.test.map;
 
 import com.test.common.map.MapCellData;
 import com.test.common.map.MapCellType;
 import com.test.common.map.MapData;
 
-@Component
 public class GameMap {
 
     public static final int WIDTH = 800;
@@ -76,7 +74,8 @@ public class GameMap {
     }
 
     private void addWalls() {
-        for (int y = 0; y < 150; y++) {
+        // Không tạo tường tại hàng 149 vì đó là sàn.
+        for (int y = 0; y < 149; y++) {
             addCell(
                     0,
                     y,
@@ -95,11 +94,11 @@ public class GameMap {
             int width) {
 
         for (int x = 0; x < width; x++) {
-            if (gridX + x >= 1
-                    && gridX + x < 19) {
+            int cellX = gridX + x;
 
+            if (cellX >= 1 && cellX < 19) {
                 addCell(
-                        gridX + x,
+                        cellX,
                         gridY,
                         MapCellType.SQUARE);
             }
