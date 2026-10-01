@@ -6,6 +6,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import com.test.common.GameConfig;
 import com.test.common.InputCommand;
 import com.test.common.PlayerState;
+import com.test.common.map.MapSpawnData;
 
 public class PlayerSession {
 
@@ -50,17 +51,16 @@ public class PlayerSession {
         playerState =
                 new PlayerState(playerId);
 
-        playerState.setX(180);
-
         /*
-         * Spawn trên floor của map01.
+         * Spawn sẽ được lấy từ MapData sau khi
+         * player tạo hoặc join room.
          *
-         * Floor nằm tại y = 5960,
-         * player cao 30 nên top = 5930.
+         * Không hard-code tọa độ map tại đây.
          */
-        playerState.setY(5930);
+        playerState.setX(0);
+        playerState.setY(0);
 
-        playerState.setOnGround(true);
+        playerState.setOnGround(false);
 
         playerState.setFacingDirection(1);
 
@@ -73,6 +73,49 @@ public class PlayerSession {
         playerState.setHasSelectedDirection(false);
 
         playerState.setJumpPower(0);
+    }
+
+    /**
+     * Đặt player về spawn point của map.
+     *
+     * Spawn được lấy từ MapData, không hard-code
+     * tọa độ trong PlayerSession.
+     */
+    public void setSpawn(
+            MapSpawnData spawn) {
+
+        if (spawn == null) {
+            throw new IllegalArgumentException(
+                    "spawn must not be null");
+        }
+
+        playerState.setX(
+                spawn.getX());
+
+        playerState.setY(
+                spawn.getY());
+
+        /*
+         * Spawn nằm trên floor của map nên
+         * player bắt đầu ở trạng thái đứng trên đất.
+         */
+        playerState.setOnGround(true);
+
+        /*
+         * Reset toàn bộ trạng thái chuyển động
+         * khi bắt đầu một room/map mới.
+         */
+        playerState.setVelocityX(0);
+        playerState.setVelocityY(0);
+
+        playerState.setChargingJump(false);
+        playerState.setChargingUp(true);
+        playerState.setMaxChargeTimer(0);
+        playerState.setHasSelectedDirection(false);
+        playerState.setJumpPower(0);
+
+        movingLeft = false;
+        movingRight = false;
     }
 
     public PlayerState getPlayerState() {

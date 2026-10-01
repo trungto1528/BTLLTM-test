@@ -9,6 +9,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import com.test.common.InputCommand;
+import com.test.common.map.MapData;
 
 @Component
 public class GameWebSocketHandler
@@ -209,10 +210,13 @@ public class GameWebSocketHandler
          * Kiểm tra map tồn tại trước khi
          * tạo room.
          */
+        MapData map;
+
         try {
 
-            gameServer.getMapRepository()
-                    .getMap(mapId);
+            map =
+                    gameServer.getMapRepository()
+                            .getMap(mapId);
 
         } catch (IllegalArgumentException e) {
 
@@ -228,6 +232,14 @@ public class GameWebSocketHandler
                         .createRoom(
                                 player,
                                 mapId);
+
+        /*
+         * Spawn player theo map của room.
+         *
+         * Không hard-code tọa độ trong server.
+         */
+        player.setSpawn(
+                map.getSpawn());
 
         System.out.println(
                 "Room created: "
@@ -385,6 +397,30 @@ public class GameWebSocketHandler
             return;
         }
 
+        /*
+         * Lấy map của room trước khi join.
+         *
+         * Room đã lưu mapId nên player luôn
+         * spawn theo đúng map của room.
+         */
+        MapData map;
+
+        try {
+
+            map =
+                    gameServer.getMapRepository()
+                            .getMap(
+                                    room.getMapId());
+
+        } catch (IllegalArgumentException e) {
+
+            sendError(
+                    session,
+                    "MAP_NOT_FOUND");
+
+            return;
+        }
+
         boolean joined =
                 gameServer.getRoomManager()
                         .joinRoom(
@@ -399,6 +435,12 @@ public class GameWebSocketHandler
 
             return;
         }
+
+        /*
+         * Spawn player theo map của room.
+         */
+        player.setSpawn(
+                map.getSpawn());
 
         System.out.println(
                 "Player "
