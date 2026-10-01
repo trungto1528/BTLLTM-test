@@ -90,10 +90,6 @@ public class PhysicsEngine {
             MapCellType type =
                     cell.getType();
 
-            if (type != MapCellType.SQUARE) {
-                continue;
-            }
-
             double x =
                     cell.getGridX()
                             * map.getCellSize();
@@ -102,66 +98,191 @@ public class PhysicsEngine {
                     cell.getGridY()
                             * map.getCellSize();
 
-            double width =
+            double size =
                     map.getCellSize();
 
-            double height =
-                    map.getCellSize();
+            if (type == MapCellType.SQUARE) {
 
-            boolean verticalOverlap =
-                    player.getY()
-                            + GameConfig.PLAYER_HEIGHT
-                            > y
-                    &&
-                    player.getY()
-                            < y + height;
+                resolveSquareHorizontalCollision(
+                        player,
+                        oldX,
+                        x,
+                        y,
+                        size);
 
-            if (!verticalOverlap) {
-                continue;
-            }
+            } else if (type
+                    == MapCellType.TRIANGLE_LEFT) {
 
-            if (player.getVelocityX() > 0) {
+                resolveTriangleLeftHorizontalCollision(
+                        player,
+                        oldX,
+                        x,
+                        y,
+                        size);
 
-                boolean crossed =
-                        oldX
-                                + GameConfig.PLAYER_WIDTH
-                                <= x
-                        &&
-                        player.getX()
-                                + GameConfig.PLAYER_WIDTH
-                                >= x;
+            } else if (type
+                    == MapCellType.TRIANGLE_RIGHT) {
 
-                if (crossed) {
-
-                    player.setX(
-                            x
-                                    - GameConfig.PLAYER_WIDTH);
-
-                    player.setVelocityX(
-                            -player.getVelocityX()
-                                    * GameConfig.BOUND_RATIO);
-                }
-
-            } else if (player.getVelocityX() < 0) {
-
-                boolean crossed =
-                        oldX
-                                >= x + width
-                        &&
-                        player.getX()
-                                <= x + width;
-
-                if (crossed) {
-
-                    player.setX(
-                            x + width);
-
-                    player.setVelocityX(
-                            -player.getVelocityX()
-                                    * GameConfig.BOUND_RATIO);
-                }
+                resolveTriangleRightHorizontalCollision(
+                        player,
+                        oldX,
+                        x,
+                        y,
+                        size);
             }
         }
+    }
+
+    private void resolveSquareHorizontalCollision(
+            PlayerState player,
+            double oldX,
+            double x,
+            double y,
+            double size) {
+
+        boolean verticalOverlap =
+                player.getY()
+                        + GameConfig.PLAYER_HEIGHT
+                        > y
+                &&
+                player.getY()
+                        < y + size;
+
+        if (!verticalOverlap) {
+            return;
+        }
+
+        if (player.getVelocityX() > 0) {
+
+            boolean crossed =
+                    oldX
+                            + GameConfig.PLAYER_WIDTH
+                            <= x
+                    &&
+                    player.getX()
+                            + GameConfig.PLAYER_WIDTH
+                            >= x;
+
+            if (crossed) {
+
+                player.setX(
+                        x
+                                - GameConfig.PLAYER_WIDTH);
+
+                player.setVelocityX(
+                        -player.getVelocityX()
+                                * GameConfig.BOUND_RATIO);
+            }
+
+        } else if (player.getVelocityX() < 0) {
+
+            boolean crossed =
+                    oldX
+                            >= x + size
+                    &&
+                    player.getX()
+                            <= x + size;
+
+            if (crossed) {
+
+                player.setX(
+                        x + size);
+
+                player.setVelocityX(
+                        -player.getVelocityX()
+                                * GameConfig.BOUND_RATIO);
+            }
+        }
+    }
+
+    private void resolveTriangleLeftHorizontalCollision(
+            PlayerState player,
+            double oldX,
+            double x,
+            double y,
+            double size) {
+
+        if (player.getVelocityX() <= 0) {
+            return;
+        }
+
+        double triangleRight =
+                x + size;
+
+        boolean verticalOverlap =
+                player.getY()
+                        + GameConfig.PLAYER_HEIGHT
+                        > y
+                &&
+                player.getY()
+                        < y + size;
+
+        if (!verticalOverlap) {
+            return;
+        }
+
+        boolean crossed =
+                oldX
+                        + GameConfig.PLAYER_WIDTH
+                        <= triangleRight
+                &&
+                player.getX()
+                        + GameConfig.PLAYER_WIDTH
+                        >= triangleRight;
+
+        if (!crossed) {
+            return;
+        }
+
+        player.setX(
+                triangleRight
+                        - GameConfig.PLAYER_WIDTH);
+
+        player.setVelocityX(
+                -player.getVelocityX()
+                        * GameConfig.BOUND_RATIO);
+    }
+
+    private void resolveTriangleRightHorizontalCollision(
+            PlayerState player,
+            double oldX,
+            double x,
+            double y,
+            double size) {
+
+        if (player.getVelocityX() >= 0) {
+            return;
+        }
+
+        boolean verticalOverlap =
+                player.getY()
+                        + GameConfig.PLAYER_HEIGHT
+                        > y
+                &&
+                player.getY()
+                        < y + size;
+
+        if (!verticalOverlap) {
+            return;
+        }
+
+        boolean crossed =
+                oldX
+                        >= x
+                &&
+                player.getX()
+                        <= x;
+
+        if (!crossed) {
+            return;
+        }
+
+        player.setX(
+                x);
+
+        player.setVelocityX(
+                -player.getVelocityX()
+                        * GameConfig.BOUND_RATIO);
     }
 
     private void resolveVerticalCollision(
