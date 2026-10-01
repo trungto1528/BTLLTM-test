@@ -1,9 +1,14 @@
 package com.test.editor;
 
+import java.io.IOException;
+import java.nio.file.Path;
+
 import com.test.common.map.MapCellType;
 import com.test.common.map.MapData;
 
 import javafx.geometry.Insets;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.ToggleButton;
@@ -12,6 +17,8 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
+import javafx.stage.Window;
 
 public class MapEditorScene extends BorderPane {
 
@@ -19,8 +26,10 @@ public class MapEditorScene extends BorderPane {
     private static final int MAP_HEIGHT = 6000;
     private static final int CELL_SIZE = 40;
 
-    private final MapData mapData;
-    private final MapCanvas mapCanvas;
+    private final MapFileService mapFileService;
+
+    private MapData mapData;
+    private MapCanvas mapCanvas;
 
     private final ToggleGroup cellTypeGroup;
 
@@ -31,7 +40,13 @@ public class MapEditorScene extends BorderPane {
 
     private final Label statusLabel;
 
+    private final Button saveButton;
+    private final Button loadButton;
+
     public MapEditorScene() {
+
+        mapFileService =
+                new MapFileService();
 
         mapData =
                 new MapData(
@@ -43,32 +58,53 @@ public class MapEditorScene extends BorderPane {
                 new ToggleGroup();
 
         emptyButton =
-                createCellTypeButton("Empty");
+                createCellTypeButton(
+                        "Empty");
 
         squareButton =
-                createCellTypeButton("Square");
+                createCellTypeButton(
+                        "Square");
 
         triangleLeftButton =
-                createCellTypeButton("Triangle Left");
+                createCellTypeButton(
+                        "Triangle Left");
 
         triangleRightButton =
-                createCellTypeButton("Triangle Right");
+                createCellTypeButton(
+                        "Triangle Right");
 
         squareButton.setSelected(true);
 
         mapCanvas =
-                new MapCanvas(
-                        mapData,
-                        this::getSelectedCellType);
+                createMapCanvas();
 
         statusLabel =
                 new Label();
+
+        saveButton =
+                new Button("Save");
+
+        loadButton =
+                new Button("Load");
+
+        saveButton.setOnAction(
+                event -> saveMap());
+
+        loadButton.setOnAction(
+                event -> loadMap());
 
         updateStatus();
 
         createTopBar();
         createMapView();
         createBottomBar();
+    }
+
+    private MapCanvas createMapCanvas() {
+
+        return new MapCanvas(
+                mapData,
+                this::getSelectedCellType);
     }
 
     private ToggleButton createCellTypeButton(
@@ -80,8 +116,8 @@ public class MapEditorScene extends BorderPane {
         button.setToggleGroup(
                 cellTypeGroup);
 
-        button.setOnAction(event ->
-                updateStatus());
+        button.setOnAction(
+                event -> updateStatus());
 
         return button;
     }
@@ -134,7 +170,9 @@ public class MapEditorScene extends BorderPane {
                         squareButton,
                         triangleLeftButton,
                         triangleRightButton,
-                        emptyButton);
+                        emptyButton,
+                        saveButton,
+                        loadButton);
 
         toolbar.setPadding(
                 new Insets(10));
@@ -190,7 +228,169 @@ public class MapEditorScene extends BorderPane {
 
         statusLabel.setText(
                 "Selected: "
-                        + type.name());
+                        + type.name()
+                        + " | Cells: "
+                        + mapData.getCells().size());
+    }
+
+    private void saveMap() {
+
+        FileChooser fileChooser =
+                new FileChooser();
+
+        fileChooser.setTitle(
+                "Save Map");
+
+        fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter(
+                        "Map JSON",
+                        "*.json"));
+
+        fileChooser.setInitialFileName(
+                "map.json");
+
+        Path path =
+                getSelectedFile(
+                        fileChooser,
+                        true);
+
+        if (path == null) {
+            return;
+        }
+
+        try {
+
+            mapFileService.save(
+                    mapData,
+                    path);
+
+            showInfo(
+                    "Save thành công",
+                    "Đã lưu map:\n"
+                            + path);
+
+        } catch (IOException exception) {
+
+            showError(
+                    "Không thể save map",
+                    exception);
+        }
+    }
+
+    private void loadMap() {
+
+        FileChooser fileChooser =
+                new FileChooser();
+
+        fileChooser.setTitle(
+                "Load Map");
+
+        fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter(
+                        "Map JSON",
+                        "*.json"));
+
+        Path path =
+                getSelectedFile(
+                        fileChooser,
+                        false);
+
+        if (path == null) {
+            return;
+        }
+
+        try {
+
+            MapData loadedMap =
+                    mapFileService.load(
+                            path);
+
+            mapData =
+                    loadedMap;
+
+            mapCanvas =
+                    createMapCanvas();
+
+            createMapView();
+
+            updateStatus();
+
+            showInfo(
+                    "Load thành công",
+                    "Đã load map:\n"
+                            + path);
+
+        } catch (IOException
+                | IllegalArgumentException exception) {
+
+            showError(
+                    "Không thể load map",
+                    exception);
+        }
+    }
+
+    private Path getSelectedFile(
+            FileChooser fileChooser,
+            boolean save) {
+
+        Window window =
+                getScene() == null
+                        ? null
+                        : getScene().getWindow();
+
+        if (save) {
+
+            var file =
+                    fileChooser.showSaveDialog(
+                            window);
+
+            if (file == null) {
+                return null;
+            }
+
+            return file.toPath();
+        }
+
+        var file =
+                fileChooser.showOpenDialog(
+                        window);
+
+        if (file == null) {
+            return null;
+        }
+
+        return file.toPath();
+    }
+
+    private void showInfo(
+            String title,
+            String message) {
+
+        Alert alert =
+                new Alert(
+                        Alert.AlertType.INFORMATION);
+
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+
+        alert.showAndWait();
+    }
+
+    private void showError(
+            String title,
+            Exception exception) {
+
+        Alert alert =
+                new Alert(
+                        Alert.AlertType.ERROR);
+
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(
+                exception.getMessage());
+
+        alert.showAndWait();
     }
 
     public MapData getMapData() {
