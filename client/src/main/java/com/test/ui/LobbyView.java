@@ -2,9 +2,9 @@ package com.test.ui;
 
 import java.util.List;
 
-import com.test.GameApp;
 import com.test.common.map.MapInfo;
 import com.test.core.PlayerDirectory;
+import com.test.game.GameApp;
 
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -19,7 +19,6 @@ import javafx.scene.text.Font;
 
 public class LobbyView extends VBox {
 
-    private final GameApp app;
 
     private final Label roomIdLabel;
     private final Label playersLabel;
@@ -38,7 +37,6 @@ public class LobbyView extends VBox {
 
     public LobbyView(GameApp app) {
 
-        this.app = app;
 
         setSpacing(18);
         setAlignment(Pos.CENTER);
