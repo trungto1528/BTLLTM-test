@@ -276,8 +276,6 @@ public class GameWebSocketHandler
                         + room.getRoomId()
                         + "|"
                         + room.getMapId());
-
-        broadcastRoomState(room);
     }
 
     // =====================================================
