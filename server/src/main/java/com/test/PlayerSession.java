@@ -14,16 +14,15 @@ public class PlayerSession {
 
     /*
      * =========================
-     * INPUT QUEUE
+     * PLAYER IDENTITY
      * =========================
      *
-     * WebSocket thread chỉ enqueue input.
-     *
-     * Game thread 60 TPS mới xử lý input.
-     *
-     * Điều này đảm bảo gameplay state không bị
-     * thay đổi trực tiếp từ WebSocket thread.
+     * Display name là thông tin của
+     * connection/session, không thuộc
+     * authoritative gameplay state.
      */
+    private String displayName;
+
     private final Queue<InputCommand> inputQueue =
             new ConcurrentLinkedQueue<>();
 
@@ -50,6 +49,8 @@ public class PlayerSession {
 
         playerState =
                 new PlayerState(playerId);
+
+        displayName = null;
 
         /*
          * Spawn sẽ được lấy từ MapData sau khi
@@ -121,6 +122,22 @@ public class PlayerSession {
     public PlayerState getPlayerState() {
 
         return playerState;
+    }
+
+    // =====================================================
+    // PLAYER IDENTITY
+    // =====================================================
+
+    public String getDisplayName() {
+
+        return displayName;
+    }
+
+    public void setDisplayName(
+            String displayName) {
+
+        this.displayName =
+                displayName;
     }
 
     // =====================================================

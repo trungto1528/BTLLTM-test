@@ -5,6 +5,7 @@ import com.test.common.map.MapData;
 import com.test.core.ClientPlayerController;
 import com.test.core.GameWebSocketClient;
 import com.test.core.Player;
+import com.test.core.PlayerDirectory;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -26,10 +27,15 @@ public class GameScene extends Pane {
 
     private final String mapId;
 
+    private final PlayerDirectory playerDirectory;
+
     private final Pane world =
             new Pane();
 
     private final Player player;
+
+    private final Label playerNameLabel =
+            new Label();
 
     private final Rectangle jumpBarBackground =
             new Rectangle(40, 6);
@@ -74,7 +80,8 @@ public class GameScene extends Pane {
 
     public GameScene(
             GameWebSocketClient network,
-            String mapId) {
+            String mapId,
+            PlayerDirectory playerDirectory) {
 
         this.network = network;
 
@@ -85,7 +92,16 @@ public class GameScene extends Pane {
                     "mapId must not be blank");
         }
 
+        if (playerDirectory == null) {
+
+            throw new IllegalArgumentException(
+                    "playerDirectory must not be null");
+        }
+
         this.mapId = mapId;
+
+        this.playerDirectory =
+                playerDirectory;
 
         setPrefSize(
                 VIEW_WIDTH,
@@ -120,6 +136,17 @@ public class GameScene extends Pane {
 
         world.getChildren().add(
                 player);
+
+        /*
+         * Tên của local player.
+         *
+         * Đặt sau player trong world để tên
+         * nằm phía trên player về thứ tự render.
+         */
+        setupPlayerNameLabel();
+
+        world.getChildren().add(
+                playerNameLabel);
 
         /*
          * Jump bar.
@@ -167,10 +194,75 @@ public class GameScene extends Pane {
         map.loadAsync(
                 mapId);
 
+        updatePlayerNameLabel();
+
         camera.update();
 
         Platform.runLater(
                 this::requestFocus);
+    }
+
+    // =====================================================
+    // PLAYER NAME
+    // =====================================================
+
+    private void setupPlayerNameLabel() {
+
+        playerNameLabel.setAlignment(
+                Pos.CENTER);
+
+        playerNameLabel.setPrefWidth(
+                120);
+
+        playerNameLabel.setMinWidth(
+                120);
+
+        playerNameLabel.setMaxWidth(
+                120);
+
+        playerNameLabel.setPrefHeight(
+                24);
+
+        playerNameLabel.setStyle(
+                "-fx-text-fill: white;"
+                        + "-fx-font-size: 14px;"
+                        + "-fx-font-weight: bold;"
+                        + "-fx-background-color: rgba(20,20,25,0.82);"
+                        + "-fx-background-radius: 5;"
+                        + "-fx-padding: 3 8;");
+
+        playerNameLabel.setMouseTransparent(
+                true);
+    }
+
+    public void updatePlayerNameLabel() {
+
+        String playerId =
+                getLocalPlayerId();
+
+        String name =
+                playerDirectory.getNameOrFallback(
+                        playerId);
+
+        playerNameLabel.setText(
+                name);
+
+        double labelWidth =
+                playerNameLabel.getPrefWidth();
+
+        double labelX =
+                player.getX()
+                        + player.getWidth() / 2
+                        - labelWidth / 2;
+
+        double labelY =
+                player.getY() - 30;
+
+        playerNameLabel.setLayoutX(
+                labelX);
+
+        playerNameLabel.setLayoutY(
+                labelY);
     }
 
     // =====================================================
@@ -461,6 +553,7 @@ public class GameScene extends Pane {
         controller.getState().setVelocityY(0);
 
         updateJumpBar();
+        updatePlayerNameLabel();
 
         camera.update();
     }
@@ -470,6 +563,8 @@ public class GameScene extends Pane {
 
         controller.getState().setPlayerId(
                 playerId);
+
+        updatePlayerNameLabel();
 
         System.out.println(
                 "Local player ID: "
@@ -497,6 +592,10 @@ public class GameScene extends Pane {
 
     public ClientPlayerController getController() {
         return controller;
+    }
+
+    public PlayerDirectory getPlayerDirectory() {
+        return playerDirectory;
     }
 
     public MapData getMapData() {
@@ -610,5 +709,7 @@ public class GameScene extends Pane {
 
         jumpBarFill.setWidth(
                 barWidth * ratio);
+
+        updatePlayerNameLabel();
     }
 }

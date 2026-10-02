@@ -9,10 +9,13 @@ import com.test.common.GameConfig;
 import com.test.common.PlayerState;
 import com.test.core.Player;
 
+import javafx.geometry.Pos;
 import javafx.scene.Group;
+import javafx.scene.control.Label;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.text.Font;
 
 public class GameSceneRemotePlayers {
 
@@ -28,6 +31,9 @@ public class GameSceneRemotePlayers {
             new HashSet<>();
 
     private final Map<String, Group> disconnectedIndicators =
+            new HashMap<>();
+
+    private final Map<String, Label> playerNameLabels =
             new HashMap<>();
 
     private int lastServerSequence = 0;
@@ -64,6 +70,7 @@ public class GameSceneRemotePlayers {
     }
 
     public int getLastServerSequence() {
+
         return lastServerSequence;
     }
 
@@ -104,7 +111,13 @@ public class GameSceneRemotePlayers {
             scene.getWorld()
                     .getChildren()
                     .add(remote);
+
+            createPlayerNameLabel(
+                    playerId);
         }
+
+        updatePlayerName(
+                playerId);
 
         RemoteState remoteState =
                 remoteStates.computeIfAbsent(
@@ -125,7 +138,6 @@ public class GameSceneRemotePlayers {
             remoteState.targetY =
                     snapshot.y;
 
-
             remoteState.targetOnGround =
                     snapshot.onGround;
 
@@ -139,7 +151,6 @@ public class GameSceneRemotePlayers {
 
             remoteState.previousY =
                     remoteState.targetY;
-
 
             remoteState.targetX =
                     snapshot.x;
@@ -254,16 +265,144 @@ public class GameSceneRemotePlayers {
             remote.setOnGround(
                     remoteState.targetOnGround);
 
+            updatePlayerNamePosition(
+                    playerId);
+
             updateDisconnectedIndicatorPosition(
                     playerId);
         }
     }
 
+    // =====================================================
+    // PLAYER NAME
+    // =====================================================
+
+    private void createPlayerNameLabel(
+            String playerId) {
+
+        if (playerNameLabels.containsKey(
+                playerId)) {
+
+            return;
+        }
+
+        Label label =
+                new Label();
+
+        label.setFont(
+                Font.font(
+                        14));
+
+        label.setTextFill(
+                Color.WHITE);
+
+        label.setAlignment(
+                Pos.CENTER);
+
+        label.setMinWidth(
+                100);
+
+        label.setPrefWidth(
+                100);
+
+        label.setMaxWidth(
+                100);
+
+        label.setMouseTransparent(
+                true);
+
+        label.setStyle(
+                "-fx-background-color: rgba(20, 24, 30, 0.82);"
+                        + "-fx-background-radius: 5;"
+                        + "-fx-padding: 3 6;"
+                        + "-fx-border-color: rgba(255,255,255,0.18);"
+                        + "-fx-border-radius: 5;");
+
+        playerNameLabels.put(
+                playerId,
+                label);
+
+        scene.getWorld()
+                .getChildren()
+                .add(label);
+
+        updatePlayerName(
+                playerId);
+
+        updatePlayerNamePosition(
+                playerId);
+    }
+
+    private void updatePlayerName(
+            String playerId) {
+
+        Label label =
+                playerNameLabels.get(
+                        playerId);
+
+        if (label == null) {
+            return;
+        }
+
+        String name =
+                scene.getPlayerDirectory()
+                        .getNameOrFallback(
+                                playerId);
+
+        label.setText(
+                name);
+    }
+
+    private void updatePlayerNamePosition(
+            String playerId) {
+
+        Player remote =
+                remotePlayers.get(
+                        playerId);
+
+        Label label =
+                playerNameLabels.get(
+                        playerId);
+
+        if (remote == null
+                || label == null) {
+
+            return;
+        }
+
+        double labelWidth =
+                label.getPrefWidth();
+
+        label.setLayoutX(
+                remote.getX()
+                        + remote.getWidth() / 2.0
+                        - labelWidth / 2.0);
+
+        /*
+         * Tên nằm trên disconnect icon.
+         *
+         * Player
+         *   ↑
+         * Disconnect icon
+         *   ↑
+         * Name
+         */
+        label.setLayoutY(
+                remote.getY()
+                        - 58);
+    }
+
+    // =====================================================
+    // PLAYER LEFT
+    // =====================================================
+
     public void handlePlayerLeft(
             String message) {
 
         String[] parts =
-                message.split("\\|", -1);
+                message.split(
+                        "\\|",
+                        -1);
 
         /*
          * PLAYER_LEFT|roomId|playerId|wasHost|newHostId
@@ -285,9 +424,19 @@ public class GameSceneRemotePlayers {
         disconnectedPlayerIds.add(
                 playerId);
 
+        updatePlayerName(
+                playerId);
+
         showDisconnectedIndicator(
                 playerId);
+
+        updatePlayerNamePosition(
+                playerId);
     }
+
+    // =====================================================
+    // DISCONNECT INDICATOR
+    // =====================================================
 
     private void showDisconnectedIndicator(
             String playerId) {
@@ -395,8 +544,12 @@ public class GameSceneRemotePlayers {
                         + remote.getWidth() / 2.0
                         - 7);
 
+        /*
+         * Disconnect icon nằm giữa
+         * tên và player.
+         */
         indicator.setLayoutY(
                 remote.getY()
-                        - 20);
+                        - 32);
     }
 }
