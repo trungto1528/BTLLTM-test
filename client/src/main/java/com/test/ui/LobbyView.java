@@ -19,7 +19,6 @@ import javafx.scene.text.Font;
 
 public class LobbyView extends VBox {
 
-    private final GameApp app;
 
     private final Label roomIdLabel;
     private final Label playersLabel;
@@ -38,7 +37,6 @@ public class LobbyView extends VBox {
 
     public LobbyView(GameApp app) {
 
-        this.app = app;
 
         setSpacing(18);
         setAlignment(Pos.CENTER);
