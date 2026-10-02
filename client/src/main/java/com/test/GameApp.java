@@ -883,9 +883,6 @@ public class GameApp extends Application {
         final String finalMapId =
                 mapId;
 
-        final int finalPlayerCount =
-                playerCount;
-
         final int finalMaxPlayers =
                 maxPlayers;
 
@@ -1213,7 +1210,8 @@ public class GameApp extends Application {
         gameScene =
                 new GameScene(
                         network,
-                        currentMapId);
+                        currentMapId,
+                        playerDirectory);
 
         if (localPlayerId != null) {
 
