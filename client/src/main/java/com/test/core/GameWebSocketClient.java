@@ -323,6 +323,12 @@ public class GameWebSocketClient
                     "WELCOME|")
 
                 || message.startsWith(
+                    "NAME_SET|")
+
+                || message.startsWith(
+                    "NAME_ERROR|")
+
+                || message.startsWith(
                     "ROOM_CREATED|")
 
                 || message.startsWith(
