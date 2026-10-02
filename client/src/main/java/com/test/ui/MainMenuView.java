@@ -11,6 +11,8 @@ import javafx.scene.text.Font;
 
 public class MainMenuView extends VBox {
 
+    private final Label playerNameLabel;
+
     public MainMenuView(GameApp app) {
 
         setSpacing(20);
@@ -48,8 +50,24 @@ public class MainMenuView extends VBox {
                 Color.LIGHTGRAY);
 
         // =================================================
+        // PLAYER NAME
+        // =================================================
+
+        playerNameLabel =
+                new Label();
+
+        playerNameLabel.setFont(
+                Font.font(18));
+
+        playerNameLabel.setTextFill(
+                Color.WHITE);
+
+        // =================================================
         // BUTTONS
         // =================================================
+
+        Button changeNameButton =
+                createButton("CHANGE NAME");
 
         Button createButton =
                 createButton("CREATE ROOM");
@@ -66,6 +84,9 @@ public class MainMenuView extends VBox {
         // =================================================
         // ACTIONS
         // =================================================
+
+        changeNameButton.setOnAction(
+                e -> app.changePlayerName());
 
         createButton.setOnAction(
                 e -> app.showCreateRoom());
@@ -86,12 +107,38 @@ public class MainMenuView extends VBox {
         getChildren().addAll(
                 title,
                 subtitle,
+                playerNameLabel,
+                changeNameButton,
                 createButton,
                 joinButton,
                 findButton,
                 exitButton
         );
     }
+
+    // =====================================================
+    // PLAYER NAME
+    // =====================================================
+
+    public void setPlayerName(
+            String name) {
+
+        if (name == null
+                || name.isBlank()) {
+
+            playerNameLabel.setText(
+                    "NAME: Player");
+
+            return;
+        }
+
+        playerNameLabel.setText(
+                "NAME: " + name);
+    }
+
+    // =====================================================
+    // CREATE BUTTON
+    // =====================================================
 
     private Button createButton(
             String text) {

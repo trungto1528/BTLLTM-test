@@ -15,6 +15,8 @@ public class PlayerNameView extends VBox {
 
     private final GameApp app;
 
+    private final Label titleLabel;
+    private final Label subtitleLabel;
     private final TextField nameField;
     private final Label errorLabel;
     private final Button continueButton;
@@ -30,19 +32,31 @@ public class PlayerNameView extends VBox {
         setPrefWidth(420);
         setPrefHeight(300);
 
-        Label titleLabel =
+        // =================================================
+        // TITLE
+        // =================================================
+
+        titleLabel =
                 new Label("JUMP GAME");
 
         titleLabel.setStyle(
                 "-fx-font-size: 32px;"
                         + "-fx-font-weight: bold;");
 
-        Label subtitleLabel =
+        // =================================================
+        // SUBTITLE
+        // =================================================
+
+        subtitleLabel =
                 new Label("ENTER YOUR NAME");
 
         subtitleLabel.setStyle(
                 "-fx-font-size: 16px;"
                         + "-fx-font-weight: bold;");
+
+        // =================================================
+        // NAME FIELD
+        // =================================================
 
         nameField =
                 new TextField();
@@ -57,6 +71,10 @@ public class PlayerNameView extends VBox {
         nameField.setStyle(
                 "-fx-font-size: 16px;");
 
+        // =================================================
+        // ERROR
+        // =================================================
+
         errorLabel =
                 new Label();
 
@@ -66,6 +84,10 @@ public class PlayerNameView extends VBox {
         errorLabel.setStyle(
                 "-fx-text-fill: #d32f2f;"
                         + "-fx-font-size: 13px;");
+
+        // =================================================
+        // BUTTON
+        // =================================================
 
         continueButton =
                 new Button("CONTINUE");
@@ -78,6 +100,10 @@ public class PlayerNameView extends VBox {
 
         nameField.setOnAction(
                 event -> submitName());
+
+        // =================================================
+        // NAME VALIDATION
+        // =================================================
 
         nameField.textProperty()
                 .addListener(
@@ -101,6 +127,10 @@ public class PlayerNameView extends VBox {
                             hideError();
                         });
 
+        // =================================================
+        // ADD
+        // =================================================
+
         getChildren().addAll(
                 titleLabel,
                 subtitleLabel,
@@ -108,6 +138,60 @@ public class PlayerNameView extends VBox {
                 errorLabel,
                 continueButton);
     }
+
+    // =====================================================
+    // FIRST NAME SETUP
+    // =====================================================
+
+    public void setupForFirstName() {
+
+        subtitleLabel.setText(
+                "ENTER YOUR NAME");
+
+        continueButton.setText(
+                "CONTINUE");
+
+        nameField.clear();
+
+        hideError();
+
+        continueButton.setDisable(
+                false);
+    }
+
+    // =====================================================
+    // CHANGE NAME SETUP
+    // =====================================================
+
+    public void setupForChangeName(
+            String currentName) {
+
+        subtitleLabel.setText(
+                "CHANGE YOUR NAME");
+
+        continueButton.setText(
+                "SAVE");
+
+        if (currentName == null
+                || currentName.isBlank()) {
+
+            nameField.clear();
+
+        } else {
+
+            nameField.setText(
+                    currentName);
+        }
+
+        hideError();
+
+        continueButton.setDisable(
+                false);
+    }
+
+    // =====================================================
+    // SUBMIT
+    // =====================================================
 
     private void submitName() {
 
@@ -122,7 +206,8 @@ public class PlayerNameView extends VBox {
             return;
         }
 
-        name = name.trim();
+        name =
+                name.trim();
 
         if (name.isBlank()) {
 
@@ -158,10 +243,16 @@ public class PlayerNameView extends VBox {
             return;
         }
 
-        continueButton.setDisable(true);
+        continueButton.setDisable(
+                true);
 
-        app.submitPlayerName(name);
+        app.submitPlayerName(
+                name);
     }
+
+    // =====================================================
+    // SHOW ERROR
+    // =====================================================
 
     public void showError(
             String message) {
@@ -169,34 +260,55 @@ public class PlayerNameView extends VBox {
         errorLabel.setText(
                 message);
 
-        errorLabel.setVisible(true);
-        errorLabel.setManaged(true);
+        errorLabel.setVisible(
+                true);
 
-        continueButton.setDisable(false);
+        errorLabel.setManaged(
+                true);
+
+        continueButton.setDisable(
+                false);
     }
+
+    // =====================================================
+    // HIDE ERROR
+    // =====================================================
 
     public void hideError() {
 
         errorLabel.setText("");
 
-        errorLabel.setVisible(false);
-        errorLabel.setManaged(false);
+        errorLabel.setVisible(
+                false);
+
+        errorLabel.setManaged(
+                false);
     }
+
+    // =====================================================
+    // RESET
+    // =====================================================
 
     public void reset() {
 
-        nameField.clear();
-
-        hideError();
-
-        continueButton.setDisable(false);
+        setupForFirstName();
 
         nameField.requestFocus();
     }
 
+    // =====================================================
+    // GET PLAYER NAME
+    // =====================================================
+
     public String getPlayerName() {
 
-        return nameField.getText()
-                .trim();
+        String name =
+                nameField.getText();
+
+        if (name == null) {
+            return "";
+        }
+
+        return name.trim();
     }
 }

@@ -73,6 +73,8 @@ public class GameApp extends Application {
 
     private String localPlayerId;
 
+    private String currentPlayerName;
+
     private String currentRoomId;
 
     private String currentMapId;
@@ -168,6 +170,10 @@ public class GameApp extends Application {
         return localPlayerId;
     }
 
+    public String getCurrentPlayerName() {
+        return currentPlayerName;
+    }
+
     public String getCurrentRoomId() {
         return currentRoomId;
     }
@@ -208,6 +214,27 @@ public class GameApp extends Application {
     }
 
     // =====================================================
+    // CHANGE PLAYER NAME
+    // =====================================================
+
+    public void changePlayerName() {
+
+        if (currentRoomId != null
+                && !currentRoomId.isBlank()) {
+
+            return;
+        }
+
+        playerNameView.setupForChangeName(
+                currentPlayerName);
+
+        scene.setRoot(
+                playerNameView);
+
+        playerNameView.requestFocus();
+    }
+
+    // =====================================================
     // SHOW MAIN MENU
     // =====================================================
 
@@ -216,6 +243,9 @@ public class GameApp extends Application {
         if (scene == null) {
             return;
         }
+
+        mainMenu.setPlayerName(
+                currentPlayerName);
 
         scene.setRoot(
                 mainMenu);
@@ -627,6 +657,9 @@ public class GameApp extends Application {
         Platform.runLater(
                 () -> {
 
+                    currentPlayerName =
+                            null;
+
                     playerNameView.reset();
 
                     scene.setRoot(
@@ -645,7 +678,11 @@ public class GameApp extends Application {
 
         String name =
                 message.substring(
-                        "NAME_SET|".length());
+                        "NAME_SET|".length())
+                        .trim();
+
+        currentPlayerName =
+                name;
 
         if (localPlayerId != null
                 && !localPlayerId.isBlank()) {
@@ -659,6 +696,9 @@ public class GameApp extends Application {
                 () -> {
 
                     playerNameView.hideError();
+
+                    mainMenu.setPlayerName(
+                            currentPlayerName);
 
                     showMainMenu();
                 });
