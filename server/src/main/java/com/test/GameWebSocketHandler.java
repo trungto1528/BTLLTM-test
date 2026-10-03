@@ -10,10 +10,13 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import com.test.common.InputCommand;
 import com.test.common.map.MapData;
+import com.test.common.map.MapInfo;
 
 @Component
 public class GameWebSocketHandler
         extends TextWebSocketHandler {
+
+    private static final int MAX_DISPLAY_NAME_LENGTH = 16;
 
     private final GameServer gameServer;
 
@@ -82,6 +85,20 @@ public class GameWebSocketHandler
         }
 
         // =================================================
+        // PLAYER IDENTITY
+        // =================================================
+
+        if (input.startsWith("SET_NAME|")) {
+
+            handleSetName(
+                    session,
+                    player,
+                    input);
+
+            return;
+        }
+
+        // =================================================
         // ROOM COMMANDS
         // =================================================
 
@@ -89,18 +106,20 @@ public class GameWebSocketHandler
 
             handleCreateRoom(
                     session,
-                    player,
-                    Room.DEFAULT_MAP_ID);
+                    player);
 
             return;
         }
 
         if (input.startsWith("CREATE_ROOM|")) {
 
+            /*
+             * Client không còn được phép
+             * chọn map khi tạo room.
+             */
             handleCreateRoom(
                     session,
-                    player,
-                    input);
+                    player);
 
             return;
         }
@@ -170,14 +189,138 @@ public class GameWebSocketHandler
     }
 
     // =====================================================
+    // SET PLAYER NAME
+    // =====================================================
+
+    private void handleSetName(
+            WebSocketSession session,
+            PlayerSession player,
+            String message)
+            throws Exception {
+
+        String playerId =
+                player.getPlayerState()
+                        .getPlayerId();
+
+        Room currentRoom =
+                gameServer.getRoomManager()
+                        .findRoomByPlayer(
+                                playerId);
+
+        /*
+         * Không cho đổi tên sau khi đã
+         * vào room.
+         *
+         * Điều này giúp identity của player
+         * ổn định trong lobby/game.
+         */
+        if (currentRoom != null) {
+
+            send(
+                    session,
+                    "NAME_ERROR|NAME_LOCKED");
+
+            return;
+        }
+
+        String[] parts =
+                message.split("\\|", -1);
+
+        if (parts.length != 2) {
+
+            send(
+                    session,
+                    "NAME_ERROR|INVALID_NAME");
+
+            return;
+        }
+
+        String displayName =
+                parts[1].trim();
+
+        if (!isValidDisplayName(
+                displayName)) {
+
+            send(
+                    session,
+                    "NAME_ERROR|INVALID_NAME");
+
+            return;
+        }
+
+        player.setDisplayName(
+                displayName);
+
+        send(
+                session,
+                "NAME_SET|"
+                        + displayName);
+
+        System.out.println(
+                "Player "
+                        + playerId
+                        + " set display name: "
+                        + displayName);
+    }
+
+    // =====================================================
+    // NAME VALIDATION
+    // =====================================================
+
+    private boolean isValidDisplayName(
+            String displayName) {
+
+        if (displayName == null
+                || displayName.isBlank()) {
+
+            return false;
+        }
+
+        if (displayName.length()
+                > MAX_DISPLAY_NAME_LENGTH) {
+
+            return false;
+        }
+
+        /*
+         * Protocol sử dụng '|', vì vậy
+         * không được phép để tên chứa '|'.
+         */
+        if (displayName.contains("|")) {
+
+            return false;
+        }
+
+        /*
+         * Không cho phép newline/carriage return
+         * để tránh phá protocol hoặc UI.
+         */
+        if (displayName.contains("\n")
+                || displayName.contains("\r")) {
+
+            return false;
+        }
+
+        return true;
+    }
+
+    // =====================================================
     // CREATE ROOM
     // =====================================================
 
     private void handleCreateRoom(
             WebSocketSession session,
-            PlayerSession player,
-            String message)
+            PlayerSession player)
             throws Exception {
+
+        if (!hasDisplayName(player)) {
+
+            sendError(
+                    session,
+                    "NAME_NOT_SET");
+
+            return;
+        }
 
         String playerId =
                 player.getPlayerState()
@@ -197,17 +340,42 @@ public class GameWebSocketHandler
             return;
         }
 
-        String mapId =
-                parseMapId(message);
+        /*
+         * Map khởi đầu của room được quyết định
+         * hoàn toàn ở server.
+         *
+         * Không còn phụ thuộc vào map01.
+         */
+        List<MapInfo> mapInfos =
+                gameServer.getMapRepository()
+                        .getMapInfos();
 
-        if (mapId == null) {
+        if (mapInfos == null
+                || mapInfos.isEmpty()) {
 
             sendError(
                     session,
-                    "INVALID_MAP_ID");
+                    "NO_MAP_AVAILABLE");
 
             return;
         }
+
+        MapInfo firstMap =
+                mapInfos.get(0);
+
+        if (firstMap == null
+                || firstMap.getId() == null
+                || firstMap.getId().isBlank()) {
+
+            sendError(
+                    session,
+                    "INVALID_DEFAULT_MAP");
+
+            return;
+        }
+
+        String mapId =
+                firstMap.getId();
 
         MapData map;
 
@@ -250,44 +418,11 @@ public class GameWebSocketHandler
                         + "|"
                         + room.getMapId());
 
+        /*
+         * Đồng bộ danh sách player + display name
+         * ngay sau khi room được tạo.
+         */
         broadcastRoomState(room);
-    }
-
-    // =====================================================
-    // MAP ID
-    // =====================================================
-
-    private String parseMapId(
-            String message) {
-
-        if (message == null
-                || message.isBlank()) {
-
-            return null;
-        }
-
-        if ("CREATE_ROOM".equals(message)) {
-
-            return Room.DEFAULT_MAP_ID;
-        }
-
-        String[] parts =
-                message.split("\\|");
-
-        if (parts.length != 2) {
-
-            return null;
-        }
-
-        String mapId =
-                parts[1].trim();
-
-        if (mapId.isBlank()) {
-
-            return null;
-        }
-
-        return mapId;
     }
 
     // =====================================================
@@ -381,20 +516,9 @@ public class GameWebSocketHandler
             return;
         }
 
-        /*
-         * Map đã thay đổi nên spawn của host
-         * cũng phải chuyển sang spawn của map mới.
-         */
         player.setSpawn(
                 map.getSpawn());
 
-        /*
-         * Các player khác cũng phải spawn
-         * theo map mới khi trận bắt đầu.
-         *
-         * Cập nhật spawn cho toàn bộ player
-         * trong room.
-         */
         for (PlayerSession roomPlayer
                 : room.getPlayers()) {
 
@@ -410,10 +534,6 @@ public class GameWebSocketHandler
                         + " by "
                         + playerId);
 
-        /*
-         * ROOM_STATE chứa mapId nên toàn bộ
-         * client trong lobby sẽ cập nhật.
-         */
         broadcastRoomState(room);
     }
 
@@ -426,6 +546,15 @@ public class GameWebSocketHandler
             PlayerSession player,
             String message)
             throws Exception {
+
+        if (!hasDisplayName(player)) {
+
+            sendError(
+                    session,
+                    "NAME_NOT_SET");
+
+            return;
+        }
 
         String[] parts =
                 message.split("\\|");
@@ -852,21 +981,69 @@ public class GameWebSocketHandler
             return;
         }
 
-        String message =
-                "ROOM_STATE|"
-                        + room.getRoomId()
-                        + "|"
-                        + room.getPlayerCount()
-                        + "|"
-                        + room.getMaxPlayers()
-                        + "|"
-                        + room.getHostPlayerId()
-                        + "|"
-                        + room.getMapId();
+        StringBuilder message =
+                new StringBuilder();
+
+        message.append("ROOM_STATE|")
+                .append(room.getRoomId())
+                .append("|")
+                .append(room.getPlayerCount())
+                .append("|")
+                .append(room.getMaxPlayers())
+                .append("|")
+                .append(room.getHostPlayerId())
+                .append("|")
+                .append(room.getMapId());
+
+        /*
+         * ROOM_STATE đồng bộ identity của
+         * tất cả player trong room.
+         *
+         * WORLD_STATE không chứa displayName.
+         */
+        for (PlayerSession player
+                : room.getPlayers()) {
+
+            String playerId =
+                    player.getPlayerState()
+                            .getPlayerId();
+
+            String displayName =
+                    player.getDisplayName();
+
+            if (displayName == null
+                    || displayName.isBlank()) {
+
+                displayName = "Player";
+            }
+
+            message.append("|PLAYER|")
+                    .append(playerId)
+                    .append("|")
+                    .append(displayName);
+        }
 
         broadcast(
                 room,
-                message);
+                message.toString());
+    }
+
+    // =====================================================
+    // PLAYER NAME
+    // =====================================================
+
+    private boolean hasDisplayName(
+            PlayerSession player) {
+
+        if (player == null) {
+            return false;
+        }
+
+        String displayName =
+                player.getDisplayName();
+
+        return displayName != null
+                && !displayName.isBlank();
     }
 
     // =====================================================

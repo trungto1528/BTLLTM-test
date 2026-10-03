@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import com.test.common.map.MapCellData;
 import com.test.common.map.MapCellType;
 import com.test.common.map.MapData;
 import com.test.common.map.MapSpawnData;
@@ -28,7 +27,7 @@ public class MapEditorScene extends BorderPane {
 
     private static final int MAP_WIDTH = 800;
     private static final int MAP_HEIGHT = 6000;
-    private static final int CELL_SIZE = 40;
+    private static final int CELL_SIZE = 16;
 
     private final MapFileService mapFileService =
             new MapFileService();
@@ -45,6 +44,8 @@ public class MapEditorScene extends BorderPane {
 
     private MapData mapData;
     private MapCanvas mapCanvas;
+    private ScrollPane mapScrollPane;
+    private VBox mapTools;
 
     private String currentMapId;
     private String currentMapName;
@@ -69,6 +70,9 @@ public class MapEditorScene extends BorderPane {
 
     private final ToggleButton spawnButton =
             new ToggleButton("Set Spawn");
+
+    private final Button createBorderButton =
+            new Button("Create Border");
 
     private final TextField mapNameField =
             new TextField();
@@ -120,6 +124,9 @@ public class MapEditorScene extends BorderPane {
                     }
                 });
 
+        createBorderButton.setOnAction(
+                event -> createMapBorder());
+
         newButton.setOnAction(
                 event -> createNewMap());
 
@@ -168,6 +175,7 @@ public class MapEditorScene extends BorderPane {
         spawnButton.setSelected(false);
 
         if (mapCanvas != null) {
+
             mapCanvas =
                     createMapCanvas();
 
@@ -183,6 +191,9 @@ public class MapEditorScene extends BorderPane {
 
         button.setToggleGroup(
                 cellTypeGroup);
+
+        button.setMaxWidth(
+                Double.MAX_VALUE);
 
         button.setOnAction(
                 event -> {
@@ -212,11 +223,36 @@ public class MapEditorScene extends BorderPane {
         return MapCellType.SQUARE;
     }
 
+    private void cycleSelectedCellType() {
+
+        if (emptyButton.isSelected()) {
+
+            squareButton.setSelected(true);
+
+        } else if (squareButton.isSelected()) {
+
+            triangleLeftButton.setSelected(true);
+
+        } else if (triangleLeftButton.isSelected()) {
+
+            triangleRightButton.setSelected(true);
+
+        } else {
+
+            squareButton.setSelected(true);
+        }
+
+        spawnButton.setSelected(false);
+
+        updateStatus();
+    }
+
     private MapCanvas createMapCanvas() {
 
         return new MapCanvas(
                 mapData,
                 this::getSelectedCellType,
+                this::cycleSelectedCellType,
                 spawnButton::isSelected,
                 this::updateSpawn,
                 this::updateStatus);
@@ -245,11 +281,6 @@ public class MapEditorScene extends BorderPane {
                         8,
                         title,
                         metadata,
-                        squareButton,
-                        triangleLeftButton,
-                        triangleRightButton,
-                        emptyButton,
-                        spawnButton,
                         newButton,
                         saveButton,
                         saveAsButton,
@@ -265,27 +296,83 @@ public class MapEditorScene extends BorderPane {
 
     private void createMapView() {
 
-        mapCanvas =
-                mapCanvas == null
-                        ? createMapCanvas()
-                        : mapCanvas;
+        if (mapScrollPane == null) {
 
-        ScrollPane scrollPane =
-                new ScrollPane();
+            mapScrollPane =
+                    new ScrollPane();
 
-        scrollPane.setContent(
+            mapScrollPane.setPannable(true);
+
+            mapScrollPane.setFitToWidth(false);
+            mapScrollPane.setFitToHeight(false);
+
+            VBox.setVgrow(
+                    mapScrollPane,
+                    Priority.ALWAYS);
+        }
+
+        if (mapCanvas == null) {
+
+            mapCanvas =
+                    createMapCanvas();
+        }
+
+        mapScrollPane.setContent(
                 mapCanvas);
 
-        scrollPane.setPannable(true);
+        createMapTools();
 
-        scrollPane.setFitToWidth(false);
-        scrollPane.setFitToHeight(false);
+        HBox center =
+                new HBox(
+                        10,
+                        mapScrollPane,
+                        mapTools);
 
-        VBox.setVgrow(
-                scrollPane,
+        HBox.setHgrow(
+                mapScrollPane,
                 Priority.ALWAYS);
 
-        setCenter(scrollPane);
+        setCenter(center);
+    }
+
+    private void createMapTools() {
+
+        if (mapTools != null) {
+            return;
+        }
+
+        Label title =
+                new Label("Map Tools");
+
+        title.setStyle(
+                "-fx-font-size: 14px; "
+                        + "-fx-font-weight: bold;");
+
+        createBorderButton.setMaxWidth(
+                Double.MAX_VALUE);
+
+        mapTools =
+                new VBox(
+                        8,
+                        title,
+                        squareButton,
+                        triangleLeftButton,
+                        triangleRightButton,
+                        emptyButton,
+                        spawnButton,
+                        createBorderButton);
+
+        mapTools.setPadding(
+                new Insets(10));
+
+        mapTools.setPrefWidth(150);
+
+        mapTools.setMinWidth(150);
+
+        mapTools.setStyle(
+                "-fx-border-color: #bbbbbb; "
+                        + "-fx-border-width: 1px; "
+                        + "-fx-background-color: #eeeeee;");
     }
 
     private void createBottomBar() {
@@ -294,6 +381,7 @@ public class MapEditorScene extends BorderPane {
                 new Label(
                         "Chọn loại ô rồi nhấp để vẽ. "
                                 + "Chọn Empty để xóa ô. "
+                                + "Chuột phải để đổi loại block. "
                                 + "Chọn Set Spawn để đặt "
                                 + "điểm xuất phát.");
 
@@ -371,28 +459,59 @@ public class MapEditorScene extends BorderPane {
             return;
         }
 
-        MapData updatedMap =
-                new MapData(
-                        mapData.getWidth(),
-                        mapData.getHeight(),
-                        mapData.getCellSize(),
-                        spawn);
+        mapData.setSpawn(
+                spawn);
 
-        for (MapCellData cell
-                : mapData.getCells()) {
-
-            updatedMap.addCell(cell);
+        if (mapCanvas != null) {
+            mapCanvas.refresh();
         }
 
-        mapData =
-                updatedMap;
-
-        mapCanvas =
-                createMapCanvas();
-
-        createMapView();
-
         spawnButton.setSelected(false);
+
+        updateStatus();
+    }
+
+    private void createMapBorder() {
+
+        int columns =
+                mapData.getColumns();
+
+        int rows =
+                mapData.getRows();
+
+        for (int x = 0;
+                x < columns;
+                x++) {
+
+            mapData.setCell(
+                    x,
+                    0,
+                    MapCellType.SQUARE);
+
+            mapData.setCell(
+                    x,
+                    rows - 1,
+                    MapCellType.SQUARE);
+        }
+
+        for (int y = 1;
+                y < rows - 1;
+                y++) {
+
+            mapData.setCell(
+                    0,
+                    y,
+                    MapCellType.SQUARE);
+
+            mapData.setCell(
+                    columns - 1,
+                    y,
+                    MapCellType.SQUARE);
+        }
+
+        if (mapCanvas != null) {
+            mapCanvas.refresh();
+        }
 
         updateStatus();
     }
@@ -551,11 +670,9 @@ public class MapEditorScene extends BorderPane {
             mapNameField.setText(
                     currentMapName);
 
-            spawnButton.setSelected(
-                    false);
+            spawnButton.setSelected(false);
 
-            squareButton.setSelected(
-                    true);
+            squareButton.setSelected(true);
 
             mapCanvas =
                     createMapCanvas();

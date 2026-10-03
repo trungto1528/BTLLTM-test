@@ -9,9 +9,8 @@ public final class GameConfig {
     // PLAYER
     // =========================
 
-    public static final double PLAYER_WIDTH = 30;
+    public static final double PLAYER_WIDTH = 14;
     public static final double PLAYER_HEIGHT = 30;
-
 
     // =========================
     // PHYSICS
@@ -20,7 +19,6 @@ public final class GameConfig {
     public static final double GRAVITY = 1500;
 
     public static final double MOVE_SPEED = 250;
-
 
     // =========================
     // JUMP
@@ -35,7 +33,6 @@ public final class GameConfig {
 
     public static final double HORIZONTAL_JUMP_RATIO = 0.65;
 
-
     // =========================
     // GAME TICK
     // =========================
@@ -47,7 +44,6 @@ public final class GameConfig {
 
     public static final long TICK_NANOS =
             1_000_000_000L / TICK_RATE;
-
 
     // =========================
     // NETWORK

@@ -1,6 +1,6 @@
 package com.test.ui;
 
-import com.test.GameApp;
+import com.test.game.GameApp;
 
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -10,8 +10,6 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 
 public class CreateRoomView extends VBox {
-
-    private static final String DEFAULT_MAP_ID = "map01";
 
     private final Label statusLabel;
     private final Label mapLabel;
@@ -62,8 +60,7 @@ public class CreateRoomView extends VBox {
 
         mapLabel =
                 new Label(
-                        "Map: "
-                                + DEFAULT_MAP_ID
+                        "Map: Server will select the first available map"
                 );
 
         mapLabel.setFont(
@@ -105,8 +102,7 @@ public class CreateRoomView extends VBox {
 
                     setCreating();
 
-                    app.createRoom(
-                            DEFAULT_MAP_ID);
+                    app.createRoom();
                 });
 
         // =================================================
@@ -167,8 +163,7 @@ public class CreateRoomView extends VBox {
         );
 
         mapLabel.setText(
-                "Map: "
-                        + DEFAULT_MAP_ID
+                "Map: Server will select the first available map"
         );
 
         createButton.setDisable(

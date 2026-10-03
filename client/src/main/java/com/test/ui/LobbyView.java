@@ -1,20 +1,24 @@
 package com.test.ui;
 
-import com.test.GameApp;
+import java.util.List;
+
 import com.test.common.map.MapInfo;
+import com.test.core.PlayerDirectory;
+import com.test.game.GameApp;
 
 import javafx.collections.FXCollections;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 
 public class LobbyView extends VBox {
 
-    private final GameApp app;
 
     private final Label roomIdLabel;
     private final Label playersLabel;
@@ -26,11 +30,13 @@ public class LobbyView extends VBox {
     private final Button startButton;
     private final Button leaveButton;
 
+    private final GridPane playerGrid;
+    private final VBox[] playerCards;
+
     private boolean updatingMap;
 
     public LobbyView(GameApp app) {
 
-        this.app = app;
 
         setSpacing(18);
         setAlignment(Pos.CENTER);
@@ -67,7 +73,7 @@ public class LobbyView extends VBox {
                 Color.WHITE);
 
         // =================================================
-        // PLAYERS
+        // PLAYERS TITLE
         // =================================================
 
         playersLabel =
@@ -78,6 +84,40 @@ public class LobbyView extends VBox {
 
         playersLabel.setTextFill(
                 Color.LIGHTGRAY);
+
+        // =================================================
+        // PLAYER GRID
+        // =================================================
+
+        playerGrid =
+                new GridPane();
+
+        playerGrid.setHgap(14);
+        playerGrid.setVgap(14);
+        playerGrid.setAlignment(Pos.CENTER);
+
+        playerCards =
+                new VBox[4];
+
+        for (int i = 0; i < 4; i++) {
+
+            VBox card =
+                    createPlayerCard();
+
+            playerCards[i] =
+                    card;
+
+            int column =
+                    i % 2;
+
+            int row =
+                    i / 2;
+
+            playerGrid.add(
+                    card,
+                    column,
+                    row);
+        }
 
         // =================================================
         // MAP
@@ -227,12 +267,158 @@ public class LobbyView extends VBox {
                 title,
                 roomIdLabel,
                 playersLabel,
+                playerGrid,
                 mapTitleLabel,
                 mapComboBox,
                 statusLabel,
                 startButton,
                 leaveButton
         );
+
+        clearPlayerCards();
+    }
+
+    // =====================================================
+    // PLAYER CARD
+    // =====================================================
+
+    private VBox createPlayerCard() {
+
+        Label nameLabel =
+                new Label("EMPTY");
+
+        nameLabel.setFont(
+                Font.font(20));
+
+        nameLabel.setTextFill(
+                Color.WHITE);
+
+        nameLabel.setAlignment(
+                Pos.CENTER);
+
+        nameLabel.setMaxWidth(
+                Double.MAX_VALUE);
+
+        Label hostLabel =
+                new Label();
+
+        hostLabel.setFont(
+                Font.font(13));
+
+        hostLabel.setTextFill(
+                Color.GOLD);
+
+        hostLabel.setAlignment(
+                Pos.CENTER);
+
+        hostLabel.setMaxWidth(
+                Double.MAX_VALUE);
+
+        VBox card =
+                new VBox(
+                        6,
+                        nameLabel,
+                        hostLabel);
+
+        card.setAlignment(
+                Pos.CENTER);
+
+        card.setPrefSize(
+                280,
+                90);
+
+        card.setMinSize(
+                280,
+                90);
+
+        card.setMaxSize(
+                280,
+                90);
+
+        card.setPadding(
+                new Insets(10));
+
+        card.setStyle(
+                "-fx-background-color: #2c323b;"
+                        + "-fx-border-color: #4b535e;"
+                        + "-fx-border-width: 1;"
+                        + "-fx-border-radius: 6;"
+                        + "-fx-background-radius: 6;"
+        );
+
+        return card;
+    }
+
+    // =====================================================
+    // PLAYER CARD CONTENT
+    // =====================================================
+
+    private void setPlayerCard(
+            VBox card,
+            String name,
+            boolean host) {
+
+        Label nameLabel =
+                (Label) card.getChildren().get(0);
+
+        Label hostLabel =
+                (Label) card.getChildren().get(1);
+
+        if (name == null
+                || name.isBlank()) {
+
+            nameLabel.setText(
+                    "EMPTY");
+
+            hostLabel.setText("");
+
+            card.setStyle(
+                    "-fx-background-color: #252a31;"
+                            + "-fx-border-color: #3a4048;"
+                            + "-fx-border-width: 1;"
+                            + "-fx-border-radius: 6;"
+                            + "-fx-background-radius: 6;"
+            );
+
+            return;
+        }
+
+        nameLabel.setText(
+                name);
+
+        if (host) {
+
+            hostLabel.setText(
+                    "HOST");
+
+        } else {
+
+            hostLabel.setText("");
+        }
+
+        card.setStyle(
+                "-fx-background-color: #2c323b;"
+                        + "-fx-border-color: #59636f;"
+                        + "-fx-border-width: 1;"
+                        + "-fx-border-radius: 6;"
+                        + "-fx-background-radius: 6;"
+        );
+    }
+
+    // =====================================================
+    // CLEAR PLAYER CARDS
+    // =====================================================
+
+    private void clearPlayerCards() {
+
+        for (VBox card :
+                playerCards) {
+
+            setPlayerCard(
+                    card,
+                    null,
+                    false);
+        }
     }
 
     // =====================================================
@@ -272,11 +458,78 @@ public class LobbyView extends VBox {
     }
 
     // =====================================================
+    // PLAYERS WITH NAMES
+    // =====================================================
+
+    public void setPlayers(
+            List<String> playerIds,
+            String hostPlayerId,
+            int maxPlayers,
+            PlayerDirectory playerDirectory) {
+
+        int current =
+                playerIds == null
+                        ? 0
+                        : playerIds.size();
+
+        playersLabel.setText(
+                "PLAYERS ("
+                        + current
+                        + "/"
+                        + maxPlayers
+                        + ")");
+
+        clearPlayerCards();
+
+        if (playerIds == null) {
+            return;
+        }
+
+        int visiblePlayers =
+                Math.min(
+                        playerIds.size(),
+                        playerCards.length);
+
+        for (int i = 0;
+                i < visiblePlayers;
+                i++) {
+
+            String playerId =
+                    playerIds.get(i);
+
+            String name;
+
+            if (playerDirectory == null) {
+
+                name =
+                        playerId;
+
+            } else {
+
+                name =
+                        playerDirectory
+                                .getNameOrFallback(
+                                        playerId);
+            }
+
+            boolean host =
+                    playerId != null
+                            && playerId.equals(
+                                    hostPlayerId);
+
+            setPlayerCard(
+                    playerCards[i],
+                    name,
+                    host);
+        }
+    }
+
+    // =====================================================
     // MAP LIST
     // =====================================================
 
     public void setMaps(
-            java.util.List<MapInfo> maps) {
+            List<MapInfo> maps) {
 
         updatingMap = true;
 
@@ -285,6 +538,7 @@ public class LobbyView extends VBox {
             mapComboBox.setItems(
                     FXCollections.observableArrayList(
                             maps));
+
         } finally {
 
             updatingMap = false;
@@ -401,6 +655,8 @@ public class LobbyView extends VBox {
 
         statusLabel.setText(
                 "Waiting for players...");
+
+        clearPlayerCards();
 
         updatingMap = true;
 

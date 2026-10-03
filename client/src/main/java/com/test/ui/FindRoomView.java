@@ -1,6 +1,6 @@
 package com.test.ui;
 
-import com.test.GameApp;
+import com.test.game.GameApp;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
